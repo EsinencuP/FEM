@@ -1,0 +1,21 @@
+# Dependencies and build output
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+
+# Environment files contain secrets
+.env
+.env.*
+!.env.example
+
+# Logs and local tooling
+*.log
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Prisma local artifacts
+prisma/*.db
+prisma/*.db-journal
