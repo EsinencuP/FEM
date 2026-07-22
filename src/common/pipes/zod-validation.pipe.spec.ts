@@ -5,6 +5,8 @@ import { ZodValidationPipe } from './zod-validation.pipe';
 
 class ExampleDto {
   static readonly schema = z.object({ name: z.string().min(1) });
+
+  name!: string;
 }
 
 describe('ZodValidationPipe', () => {

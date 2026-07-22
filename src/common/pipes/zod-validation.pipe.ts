@@ -1,12 +1,17 @@
-import { BadRequestException, Injectable, type ArgumentMetadata, type PipeTransform } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  type ArgumentMetadata,
+  type PipeTransform,
+} from '@nestjs/common';
 import { z } from 'zod';
 
 interface ZodSchemaCarrier {
-  schema?: z.ZodType<unknown>;
+  schema?: z.ZodType;
 }
 
 @Injectable()
-export class ZodValidationPipe implements PipeTransform<unknown, unknown> {
+export class ZodValidationPipe implements PipeTransform<unknown> {
   transform(value: unknown, metadata: ArgumentMetadata): unknown {
     const metatype = metadata.metatype as ZodSchemaCarrier | undefined;
     const schema = metatype?.schema;

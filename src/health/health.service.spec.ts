@@ -27,11 +27,11 @@ describe('HealthService', () => {
   it('reports a connected database', async () => {
     queryRaw.mockResolvedValue([{ connected: 1 }]);
 
-    await expect(service.check()).resolves.toEqual({
-      status: 'ok',
-      database: 'connected',
-      timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
-    });
+    const result = await service.check();
+
+    expect(result.status).toBe('ok');
+    expect(result.database).toBe('connected');
+    expect(result.timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T/);
     expect(queryRaw).toHaveBeenCalledTimes(1);
   });
 

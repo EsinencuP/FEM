@@ -1,8 +1,9 @@
 import { randomUUID } from 'node:crypto';
 
+import { RequestMethod } from '@nestjs/common';
 import type { Params } from 'nestjs-pino';
 
-import { AppConfigService } from './app-config.service';
+import type { AppConfigService } from './app-config.service';
 
 const REDACTED_PATHS = [
   'req.headers.authorization',
@@ -17,6 +18,7 @@ const REDACTED_PATHS = [
 
 export function createPinoConfig(config: AppConfigService): Params {
   return {
+    forRoutes: [{ path: '/{*splat}', method: RequestMethod.ALL }],
     pinoHttp: {
       level: config.logLevel,
       redact: {
@@ -35,9 +37,9 @@ export function createPinoConfig(config: AppConfigService): Params {
       },
       customProps: (request) => ({ requestId: request.id }),
       customSuccessMessage: (request, response, responseTime): string =>
-        `${request.method ?? 'UNKNOWN'} ${request.url ?? '/'} completed with ${response.statusCode} in ${responseTime}ms`,
+        `${request.method ?? 'UNKNOWN'} ${request.url ?? '/'} completed with ${String(response.statusCode)} in ${String(responseTime)}ms`,
       customErrorMessage: (request, response, error): string =>
-        `${request.method ?? 'UNKNOWN'} ${request.url ?? '/'} failed with ${response.statusCode}: ${error.message}`,
+        `${request.method ?? 'UNKNOWN'} ${request.url ?? '/'} failed with ${String(response.statusCode)}: ${error.message}`,
       ...(config.isProduction
         ? {}
         : {

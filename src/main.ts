@@ -30,7 +30,11 @@ async function bootstrap(): Promise<void> {
   });
 
   await app.listen(config.port);
-  logger.log(`Backend listening on port ${config.port}`, 'Bootstrap');
+  logger.log(`Backend listening on port ${String(config.port)}`, 'Bootstrap');
 }
 
-void bootstrap();
+bootstrap().catch((error: unknown) => {
+  const message = error instanceof Error ? error.message : 'Unknown bootstrap error';
+  process.stderr.write(`Fatal bootstrap error: ${message}\n`);
+  process.exitCode = 1;
+});

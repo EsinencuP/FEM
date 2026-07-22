@@ -39,4 +39,10 @@ export default tseslint.config(
       '@typescript-eslint/no-unsafe-return': 'error',
     },
   },
+  {
+    files: ['src/**/*.module.ts'],
+    rules: {
+      '@typescript-eslint/no-extraneous-class': 'off',
+    },
+  },
 );
