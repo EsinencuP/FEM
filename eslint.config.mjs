@@ -12,7 +12,7 @@ export default tseslint.config(
   ...tseslint.configs.stylisticTypeChecked,
   prettier,
   {
-    files: ['src/**/*.ts', 'test/**/*.ts'],
+    files: ['src/**/*.ts', 'test/**/*.ts', 'prisma/**/*.ts'],
     languageOptions: {
       globals: {
         ...globals.node,
@@ -37,6 +37,7 @@ export default tseslint.config(
       '@typescript-eslint/no-unsafe-call': 'error',
       '@typescript-eslint/no-unsafe-member-access': 'error',
       '@typescript-eslint/no-unsafe-return': 'error',
+      '@typescript-eslint/restrict-template-expressions': ['error', { allowNumber: true }],
     },
   },
   {
