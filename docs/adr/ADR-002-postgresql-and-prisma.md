@@ -9,7 +9,7 @@
 
 ## Decision
 
-Использовать PostgreSQL 16 и Prisma ORM. Зафиксировать Prisma 6.19.3 как последнюю совместимую ветку, сохраняющую требуемую schema-based конфигурацию `DATABASE_URL` и стандартный `PrismaClient` без дополнительных driver adapters. На первом этапе не создавать модели и миграции.
+Использовать PostgreSQL 16 и Prisma ORM. Зафиксировать Prisma 6.19.3 как совместимую ветку, сохраняющую требуемую schema-based конфигурацию `DATABASE_URL` и стандартный `PrismaClient` без дополнительных driver adapters. Инфраструктурный этап начинался без моделей; Database v1 добавляет reviewed relational schema и именованную миграцию.
 
 ## Rationale
 

@@ -34,16 +34,16 @@ V1 запрещено:
 
 ## Source-of-truth boundaries
 
-| Concern | Source of truth | Не является source of truth |
-| --- | --- | --- |
-| Факт результата | `CompetitionResult` и его source provenance | `RankingEntryResult.pointsContribution` |
-| Спортивный статус результата | source-backed `ResultStatus` | ranking configuration |
-| Параметры рейтинга | утверждённая immutable version `RankingRuleSet` | application constants/frontend |
-| Состояние рейтинга во времени | frozen `RankingSnapshot` revision | текущие строки Athlete/Horse |
-| Позиция субъекта | `RankingEntry` конкретного snapshot | вычисленный на чтении mutable cache |
-| Counted/dropped evidence | `RankingEntryResult` | удаление проигнорированных source rows |
-| Previous rank | entry плюс явный `comparisonSnapshotId` | неявно «предыдущая дата» |
-| Публичность | `publicationStatus` и `publishedAt` | `calculationStatus` или sports result status |
+| Concern                       | Source of truth                                 | Не является source of truth                  |
+| ----------------------------- | ----------------------------------------------- | -------------------------------------------- |
+| Факт результата               | `CompetitionResult` и его source provenance     | `RankingEntryResult.pointsContribution`      |
+| Спортивный статус результата  | source-backed `ResultStatus`                    | ranking configuration                        |
+| Параметры рейтинга            | утверждённая immutable version `RankingRuleSet` | application constants/frontend               |
+| Состояние рейтинга во времени | frozen `RankingSnapshot` revision               | текущие строки Athlete/Horse                 |
+| Позиция субъекта              | `RankingEntry` конкретного snapshot             | вычисленный на чтении mutable cache          |
+| Counted/dropped evidence      | `RankingEntryResult`                            | удаление проигнорированных source rows       |
+| Previous rank                 | entry плюс явный `comparisonSnapshotId`         | неявно «предыдущая дата»                     |
+| Публичность                   | `publicationStatus` и `publishedAt`             | `calculationStatus` или sports result status |
 
 Snapshot сохраняет исторический вывод. Изменения display name спортсмена/лошади не должны менять subject identity: связь остаётся по внутреннему UUID. Требования к историческому отображению прежнего имени остаются отдельным вопросом API/audit и не решаются копированием персональных данных в ranking JSON.
 
@@ -237,4 +237,3 @@ Audit фиксирует business-critical transitions, но не подробн
 - version transition/backfill policy.
 
 Пока эти данные отсутствуют, допустимы только storage, import-to-draft и явно помеченные demo snapshots.
-

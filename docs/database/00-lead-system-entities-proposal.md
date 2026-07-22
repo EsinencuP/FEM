@@ -10,15 +10,15 @@
 
 ## User
 
-| Поле | Тип | Required | Unique | Решение |
-| --- | --- | --- | --- | --- |
-| `id` | UUID | да | PK | internal, immutable |
-| `email` | text | да | normalized unique | login/contact locator; auth не реализуется |
-| `displayName` | text | да | нет | internal profile label |
-| `status` | text/internal enum | да | нет | internal lifecycle, не official |
-| `isDemo` | boolean | да | нет | demo isolation |
-| `archivedAt` | timestamptz | нет | нет | soft delete |
-| `createdAt`, `updatedAt` | timestamptz | да | нет | lifecycle |
+| Поле                     | Тип                | Required | Unique            | Решение                                    |
+| ------------------------ | ------------------ | -------- | ----------------- | ------------------------------------------ |
+| `id`                     | UUID               | да       | PK                | internal, immutable                        |
+| `email`                  | text               | да       | normalized unique | login/contact locator; auth не реализуется |
+| `displayName`            | text               | да       | нет               | internal profile label                     |
+| `status`                 | text/internal enum | да       | нет               | internal lifecycle, не official            |
+| `isDemo`                 | boolean            | да       | нет               | demo isolation                             |
+| `archivedAt`             | timestamptz        | нет      | нет               | soft delete                                |
+| `createdAt`, `updatedAt` | timestamptz        | да       | нет               | lifecycle                                  |
 
 Email normalisation v1: trim + lowercase for technical uniqueness. User не содержит password hash до отдельного auth ADR.
 
@@ -30,17 +30,17 @@ Email normalisation v1: trim + lowercase for technical uniqueness. User не с�
 
 ## AuditLog
 
-| Поле | Тип | Required | Решение |
-| --- | --- | --- | --- |
-| `id` | UUID | да | immutable PK |
-| `actorId` | UUID FK User | нет | system/import actions допустимы без actor |
-| `action` | text | да | internal audited action code |
-| `entityType` | text | да | polymorphic target type |
-| `entityId` | UUID | да | target UUID; application-enforced target integrity |
-| `oldData`, `newData` | JSONB | нет | redacted snapshots only |
-| `reason` | text | нет | required by service for critical correction/merge/archive |
-| `requestId` | text | нет | request correlation |
-| `createdAt` | timestamptz | да | append timestamp |
+| Поле                 | Тип          | Required | Решение                                                   |
+| -------------------- | ------------ | -------- | --------------------------------------------------------- |
+| `id`                 | UUID         | да       | immutable PK                                              |
+| `actorId`            | UUID FK User | нет      | system/import actions допустимы без actor                 |
+| `action`             | text         | да       | internal audited action code                              |
+| `entityType`         | text         | да       | polymorphic target type                                   |
+| `entityId`           | UUID         | да       | target UUID; application-enforced target integrity        |
+| `oldData`, `newData` | JSONB        | нет      | redacted snapshots only                                   |
+| `reason`             | text         | нет      | required by service for critical correction/merge/archive |
+| `requestId`          | text         | нет      | request correlation                                       |
+| `createdAt`          | timestamptz  | да       | append timestamp                                          |
 
 AuditLog не получает `updatedAt`/`archivedAt`: штатное изменение и удаление запрещены. Индексы: `(entityType, entityId, createdAt)`, `(actorId, createdAt)`, `(requestId)`.
 
@@ -75,7 +75,7 @@ Document — источник/метаданные, не хранилище чу
 
 ## Общие решения
 
-- Domain/history/evidence relations используют `Restrict`/`NoAction`; `SetNull` допустим только для actor/optional presentation media.
+- Domain/history/evidence relations используют `Restrict`/`NoAction`; `SetNull` допустим только для non-approval actor/optional presentation media. Approval actor является evidence FK и использует `Restrict` в audited baseline.
 - System lifecycle vocabularies — внутренние enums (`RecordStatus`, `PublicationStatus`, import statuses); они не являются Federation/FEI codes.
 - Polymorphic targets (`AuditLog`, `ImportRow`) проверяются transaction service + integration tests в v1; общий entity registry отложен как open architecture option.
 - Все applicable records имеют `isDemo`; AuditLog/ImportRow наследуют demo boundary от actor/batch/target и не требуют дублирующего флага, кроме ImportBatch.

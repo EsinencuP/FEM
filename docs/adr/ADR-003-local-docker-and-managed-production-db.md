@@ -21,6 +21,6 @@
 ## Consequences
 
 - Docker Compose файл не является production deployment manifest.
-- CI использует только фиктивный URL для Prisma validation/generation и unit tests, без production database.
+- CI использует ephemeral PostgreSQL 16 с отдельными непроизводственными credentials для migration/seed/constraint tests и никогда не подключается к production database.
 - Staging integration tests потребуют отдельной ephemeral/test database и отдельного решения.
 - До production необходимо утвердить provider, region, pooling, backups, recovery, encryption и secret rotation.

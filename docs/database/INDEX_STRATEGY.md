@@ -101,18 +101,21 @@ Do not add a partial unique `isPrimary` index until the Federation/display polic
 
 ## Reference and domain indexes
 
-| Table                | Recommended index                         | Query                            |
-| -------------------- | ----------------------------------------- | -------------------------------- |
-| `NationalFederation` | `(countryId, archivedAt)`                 | federation by country            |
-| `Club`               | `(countryId, status, archivedAt)`         | country/status list              |
-| `Club`               | `(nationalFederationId, archivedAt)`      | federation clubs                 |
-| `Athlete`            | `(lastName, firstName, id)`               | stable directory order           |
-| `Athlete`            | `(countryId, status, archivedAt)`         | filtered directory               |
-| `Athlete`            | `(nationalFederationId, archivedAt)`      | federation athletes              |
-| `Horse`              | `(displayName, id)`; `(passportName, id)` | stable equality/prefix directory |
-| `Horse`              | `(countryOfBirthId, status, archivedAt)`  | country/status filter            |
-| `Owner`              | `(displayName, id)`                       | internal ordered lookup          |
-| `Owner`              | `(countryId, archivedAt)`                 | country filter                   |
+| Table                | Recommended index                         | Query                               |
+| -------------------- | ----------------------------------------- | ----------------------------------- |
+| `NationalFederation` | `(countryId, archivedAt)`                 | federation by country               |
+| `Club`               | `(countryId, status, archivedAt)`         | country/status list                 |
+| `Club`               | `(nationalFederationId, archivedAt)`      | federation clubs                    |
+| `Club`               | `(name, id)`                              | stable name-ordered directory       |
+| `Athlete`            | `(lastName, firstName, id)`               | stable directory order              |
+| `Athlete`            | `(displayName, id)`                       | display-name lookup/order           |
+| `Athlete`            | `(countryId, status, archivedAt)`         | filtered directory                  |
+| `Athlete`            | `(nationalFederationId, archivedAt)`      | federation athletes                 |
+| `Horse`              | `(displayName, id)`; `(passportName, id)` | stable equality/prefix directory    |
+| `Horse`              | `(birthYear, displayName, id)`            | birth-year filter with stable order |
+| `Horse`              | `(countryOfBirthId, status, archivedAt)`  | country/status filter               |
+| `Owner`              | `(displayName, id)`                       | internal ordered lookup             |
+| `Owner`              | `(countryId, archivedAt)`                 | country filter                      |
 
 Avoid separate low-value indexes on every status, boolean or archive field. At production-like volume, verify selectivity and query plans.
 
@@ -165,6 +168,7 @@ Do not add overlap-exclusion indexes until the simultaneous-relation rules are c
 | `CompetitionEvent`  | `(publicationStatus, startDate DESC, id)`            | public/editorial event list |
 | `CompetitionEvent`  | `(countryId, startDate DESC, id)`                    | country calendar            |
 | `CompetitionEvent`  | `(status, startDate DESC)`                           | internal workflow           |
+| `CompetitionEvent`  | `(endDate, id)`                                      | active/past boundary filter |
 | `CompetitionClass`  | `(competitionEventId, sortOrder, id)`                | event page                  |
 | `CompetitionClass`  | `(disciplineId, competitionDate, id)`                | discipline/date list        |
 | `CompetitionClass`  | `(competitionEventId, status)`                       | editorial filter            |

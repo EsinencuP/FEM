@@ -15,6 +15,20 @@ jobs:
   quality:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: ci_database
+          POSTGRES_USER: ci_user
+          POSTGRES_PASSWORD: ci_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci_user -d ci_database"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     env:
       NODE_ENV: test
       PORT: 3000
@@ -54,6 +68,14 @@ jobs:
 
       - name: Unit tests
         run: pnpm test
+
+      - name: Apply migrations to ephemeral PostgreSQL
+        run: pnpm prisma:migrate:deploy
+
+      - name: Seed and database constraint tests
+        run: |
+          pnpm prisma:seed
+          pnpm test:db
 
       - name: Build
         run: pnpm build

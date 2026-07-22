@@ -1,6 +1,6 @@
 # FEM Backend
 
-Технический каркас автономного REST API для информационной платформы Национальной федерации конного спорта Молдовы. Репозиторий содержит только backend-инфраструктуру первого этапа: предметные модели, frontend и production-интеграции намеренно отсутствуют.
+Автономный backend и первая PostgreSQL Database v1 для информационной платформы Национальной федерации конного спорта Молдовы. Репозиторий содержит NestJS REST foundation, Prisma-модель спортсменов, лошадей, клубов, информационных турниров, результатов и versioned ranking snapshots. Frontend, регистрация на турниры, production-интеграции и официальная формула рейтинга намеренно отсутствуют.
 
 ## Требования
 
@@ -44,11 +44,13 @@ corepack prepare pnpm@11.9.0 --activate
    pnpm db:up
    ```
 
-4. Проверьте и сгенерируйте Prisma Client:
+4. Примените локальную миграцию и безопасный demo seed:
 
    ```bash
    pnpm prisma:validate
    pnpm prisma:generate
+   pnpm prisma:migrate:dev
+   pnpm prisma:seed
    ```
 
 5. Запустите backend:
@@ -61,10 +63,16 @@ API будет доступен по адресу `http://localhost:3000/api`, h
 
 ## Миграции
 
-На первом этапе предметных моделей нет, поэтому начальная миграция намеренно не создана. После согласования схемы следующего этапа:
+MVP baseline состоит из двух reviewed migrations:
+
+- `20260722201238_initial_database_v1` — исходная схема Database v1;
+- `20260722204033_mvp_database_stabilization` — безопасная корректировка approval FK и четыре индекса для каталогов/календаря.
+
+Для локального применения:
 
 ```bash
-pnpm prisma:migrate:dev --name <migration_name>
+pnpm prisma:migrate:dev
+pnpm prisma:seed
 ```
 
 Для применения уже закоммиченных миграций в контролируемой среде:
@@ -88,17 +96,19 @@ pnpm prisma:migrate:deploy
 | `pnpm typecheck`             | TypeScript-проверка без генерации файлов               |
 | `pnpm test`                  | Unit-тесты                                             |
 | `pnpm test:e2e`              | E2E-тест с реальным локальным PostgreSQL               |
+| `pnpm test:db`               | PostgreSQL constraint tests на выделенной test-базе    |
 | `pnpm prisma:generate`       | Генерация Prisma Client                                |
 | `pnpm prisma:validate`       | Проверка Prisma schema                                 |
 | `pnpm prisma:format`         | Форматирование Prisma schema                           |
 | `pnpm prisma:migrate:dev`    | Создание/применение dev-миграций                       |
 | `pnpm prisma:migrate:deploy` | Применение готовых миграций                            |
+| `pnpm prisma:seed`           | Повторяемый fictional demo seed                        |
 | `pnpm prisma:studio`         | Локальный Prisma Studio                                |
 | `pnpm db:up`                 | Запуск локального PostgreSQL с ожиданием healthcheck   |
 | `pnpm db:down`               | Остановка локального Compose-стека без удаления volume |
 | `pnpm db:logs`               | Поток логов PostgreSQL                                 |
 
-Команда `db:reset` намеренно отсутствует: на этом этапе нет миграций, а случайный reset несёт неоправданный риск потери данных.
+Команда `db:reset` намеренно отсутствует: случайный reset persistent local database несёт неоправданный риск потери данных.
 
 ## Тестирование и quality gate
 
@@ -108,13 +118,29 @@ pnpm prisma:migrate:deploy
 pnpm prisma:format
 pnpm prisma:validate
 pnpm prisma:generate
+pnpm prisma:migrate:dev
+pnpm prisma:seed
 pnpm lint
 pnpm typecheck
 pnpm test
+pnpm test:e2e
 pnpm build
 ```
 
-Для E2E сначала выполните `pnpm db:up`, затем `pnpm test:e2e`. GitHub Actions на push и pull request выполняет установку с frozen lockfile, Prisma validate/generate, lint, typecheck, unit tests и build. Workflow использует фиктивный `DATABASE_URL` только для генерации клиента и не подключается к production-базе.
+Для E2E сначала выполните `pnpm db:up`, затем `pnpm test:e2e`.
+
+Constraint suite защищена от случайного запуска на development/production database. Создайте отдельную локальную базу и задайте process-local URL с теми же credentials, что в `.env`:
+
+```powershell
+docker exec fem-postgres-local psql -U app -d postgres -c "CREATE DATABASE equestrian_federation_test;"
+$env:NODE_ENV = 'test'
+$env:DATABASE_URL = '<локальный URL из .env с именем equestrian_federation_test>'
+pnpm prisma:migrate:deploy
+pnpm prisma:seed
+pnpm test:db
+```
+
+GitHub Actions использует ephemeral PostgreSQL 16 с непроизводственными credentials и выполняет migration, seed и constraint tests после обычных validate/generate/lint/typecheck/unit gates.
 
 ## Структура
 
@@ -124,9 +150,10 @@ src/
   config/             единая Zod-валидация env и типизированный доступ к config
   database/           глобальный DatabaseModule и singleton PrismaService
   health/             health endpoint с реальным SELECT 1
-prisma/               Prisma schema без предметных моделей
-test/                 E2E smoke-тест
-docs/                 спецификация, правила БД, вопросы и ADR
+prisma/               schema, reviewed migrations и idempotent demo seed
+test/                 HTTP E2E и PostgreSQL constraint tests
+docs/database/        предложения, audit, baseline, delete/index policy и migration safety
+docs/                 data dictionary, ER diagram, спецификация, правила, вопросы и ADR
 .github/workflows/    CI quality gate
 docker-compose.yml    только локальный PostgreSQL 16
 ```
@@ -143,6 +170,10 @@ Pino пишет структурированные JSON-логи в production �
 - Не включайте CORS глобально до согласования точных frontend origins.
 - Не подключайте production-базу к локальным тестам или CI.
 - Любое изменение Prisma schema проходит review и оформляется отдельной миграцией.
+- Официальные ID не генерируются и не используются как primary key; FEI/passport/microchip хранятся только как external identifiers из источника.
+- Demo seed содержит только явно вымышленные данные и один неопубликованный `DEMO` ranking snapshot.
+- `prisma migrate dev`, Studio и test cleanup разрешены только для явно проверенной локальной базы.
+- Approval evidence (`approvedAt` + `approvedById`) защищено `RESTRICT`: сначала выполняется отдельная аудируемая отмена approval, а не удаление actor.
 - Supabase может использоваться только как managed PostgreSQL hosting; Supabase SDK не является частью бизнес-логики.
 
 ## Остановка локальной базы

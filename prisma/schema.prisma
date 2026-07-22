@@ -311,6 +311,7 @@ model Club {
   nationalFederation   NationalFederation?     @relation(fields: [nationalFederationId], references: [id], onDelete: Restrict)
   memberships          AthleteClubMembership[]
 
+  @@index([name, id])
   @@index([countryId, status, archivedAt])
   @@index([nationalFederationId, archivedAt])
 }
@@ -354,6 +355,7 @@ model Athlete {
   rankingEntries       RankingEntry[]
 
   @@index([lastName, firstName, id])
+  @@index([displayName, id])
   @@index([countryId, status, archivedAt])
   @@index([nationalFederationId, archivedAt])
 }
@@ -384,6 +386,7 @@ model Horse {
 
   @@index([displayName, id])
   @@index([passportName, id])
+  @@index([birthYear, displayName, id])
   @@index([countryOfBirthId, status, archivedAt])
 }
 
@@ -420,6 +423,7 @@ model AthleteClubMembership {
   club             Club      @relation(fields: [clubId], references: [id], onDelete: Restrict)
   sourceDocument   Document? @relation(fields: [sourceDocumentId], references: [id], onDelete: Restrict)
 
+  @@unique([athleteId, clubId, startDate, membershipType], map: "AthleteClubMembership_exact_key")
   @@index([athleteId, startDate(sort: Desc), endDate])
   @@index([clubId, startDate(sort: Desc), endDate])
   @@index([sourceDocumentId])
@@ -443,6 +447,7 @@ model AthleteHorseRelation {
   discipline       Discipline? @relation(fields: [disciplineId], references: [id], onDelete: Restrict)
   sourceDocument   Document?   @relation(fields: [sourceDocumentId], references: [id], onDelete: Restrict)
 
+  @@unique([athleteId, horseId, relationType, startDate, disciplineId], map: "AthleteHorseRelation_exact_key")
   @@index([athleteId, startDate(sort: Desc), endDate])
   @@index([horseId, startDate(sort: Desc), endDate])
   @@index([disciplineId, endDate])
@@ -497,6 +502,7 @@ model CompetitionEvent {
   @@index([publicationStatus, startDate(sort: Desc), id])
   @@index([countryId, startDate(sort: Desc), id])
   @@index([status, startDate(sort: Desc)])
+  @@index([endDate, id])
 }
 
 model CompetitionClass {
@@ -549,7 +555,7 @@ model CompetitionResult {
   horse               Horse                @relation(fields: [horseId], references: [id], onDelete: Restrict)
   status              ResultStatus?        @relation(fields: [statusId], references: [id], onDelete: Restrict)
   sourceDocument      Document?            @relation(fields: [sourceDocumentId], references: [id], onDelete: Restrict)
-  approvedBy          User?                @relation(fields: [approvedById], references: [id], onDelete: SetNull)
+  approvedBy          User?                @relation(fields: [approvedById], references: [id], onDelete: Restrict)
   metrics             ResultMetric[]
   rankingEntryResults RankingEntryResult[]
 
@@ -619,7 +625,7 @@ model RankingRuleSet {
   updatedAt                  DateTime          @updatedAt @db.Timestamptz(3)
   rankingDefinition          RankingDefinition @relation(fields: [rankingDefinitionId], references: [id], onDelete: Restrict)
   sourceDocument             Document?         @relation(fields: [sourceDocumentId], references: [id], onDelete: Restrict)
-  approvedBy                 User?             @relation(fields: [approvedById], references: [id], onDelete: SetNull)
+  approvedBy                 User?             @relation(fields: [approvedById], references: [id], onDelete: Restrict)
   snapshots                  RankingSnapshot[]
 
   @@unique([rankingDefinitionId, version])

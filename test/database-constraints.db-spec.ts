@@ -26,8 +26,10 @@ describe('Database v1 PostgreSQL constraints', () => {
     membershipTwo: randomUUID(),
     ownershipOne: randomUUID(),
     ownershipTwo: randomUUID(),
+    athleteHorseRelation: randomUUID(),
     identifier: randomUUID(),
     audit: randomUUID(),
+    approver: randomUUID(),
     rankingSnapshot: randomUUID(),
     rankingEntry: randomUUID(),
     rankingEntryResult: randomUUID(),
@@ -45,7 +47,9 @@ describe('Database v1 PostgreSQL constraints', () => {
     const databaseRows = await prisma.$queryRaw<{ current_database: string }[]>`
       SELECT current_database()
     `;
-    expect(databaseRows[0]?.current_database).toBe('equestrian_federation_test');
+    expect(['equestrian_federation_test', 'ci_database']).toContain(
+      databaseRows[0]?.current_database,
+    );
 
     await seedDatabase(prisma);
     const [country, club, discipline, resultStatus, period] = await Promise.all([
@@ -78,12 +82,14 @@ describe('Database v1 PostgreSQL constraints', () => {
     await prisma.horseOwnership.deleteMany({
       where: { id: { in: [ids.ownershipOne, ids.ownershipTwo] } },
     });
+    await prisma.athleteHorseRelation.deleteMany({ where: { id: ids.athleteHorseRelation } });
     await prisma.athleteClubMembership.deleteMany({
       where: { id: { in: [ids.membershipOne, ids.membershipTwo] } },
     });
     await prisma.owner.deleteMany({ where: { id: ids.owner } });
     await prisma.horse.deleteMany({ where: { id: ids.horse } });
     await prisma.athlete.deleteMany({ where: { id: { in: [ids.athleteOne, ids.athleteTwo] } } });
+    await prisma.user.deleteMany({ where: { id: ids.approver } });
     await prisma.$disconnect();
   });
 
@@ -110,6 +116,11 @@ describe('Database v1 PostgreSQL constraints', () => {
     });
     expect(athlete.id).toBe(ids.athleteOne);
     expect(second.id).toBe(ids.athleteTwo);
+    expect(
+      await prisma.externalIdentifier.count({
+        where: { entityType: 'Athlete', entityId: { in: [ids.athleteOne, ids.athleteTwo] } },
+      }),
+    ).toBe(0);
   });
 
   it('stores an external FEI identifier and keeps it unique after archive', async () => {
@@ -146,8 +157,8 @@ describe('Database v1 PostgreSQL constraints', () => {
     ).rejects.toMatchObject({ code: 'P2002' });
   });
 
-  it('creates a horse without an FEI identifier', async () => {
-    await prisma.horse.create({
+  it('creates a horse without passport, microchip or FEI identifiers', async () => {
+    const horse = await prisma.horse.create({
       data: {
         id: ids.horse,
         displayName: 'Constraint Demo Horse',
@@ -155,11 +166,26 @@ describe('Database v1 PostgreSQL constraints', () => {
         status: RecordStatus.DRAFT,
       },
     });
+    expect(horse.passportName).toBeNull();
     expect(
       await prisma.externalIdentifier.count({
         where: { entityType: 'Horse', entityId: ids.horse },
       }),
     ).toBe(0);
+  });
+
+  it('stores athlete-horse relation history', async () => {
+    const relation = await prisma.athleteHorseRelation.create({
+      data: {
+        id: ids.athleteHorseRelation,
+        athleteId: ids.athleteOne,
+        horseId: ids.horse,
+        disciplineId,
+        relationType: 'TEST_RELATION',
+        startDate: new Date('2025-01-01T00:00:00.000Z'),
+      },
+    });
+    expect(relation.endDate).toBeNull();
   });
 
   it('preserves club membership history', async () => {
@@ -401,6 +427,48 @@ describe('Database v1 PostgreSQL constraints', () => {
     expect(athlete.archivedAt?.getTime()).toBe(archivedAt.getTime());
     await expect(prisma.athlete.delete({ where: { id: ids.athleteOne } })).rejects.toMatchObject({
       code: 'P2003',
+    });
+  });
+
+  it('archives a horse and event without deleting their results', async () => {
+    const archivedAt = new Date();
+    await prisma.horse.update({ where: { id: ids.horse }, data: { archivedAt } });
+    await prisma.competitionEvent.update({ where: { id: ids.event }, data: { archivedAt } });
+
+    expect(await prisma.competitionResult.count({ where: { horseId: ids.horse } })).toBe(2);
+    expect(
+      await prisma.competitionResult.count({
+        where: { competitionClass: { competitionEventId: ids.event } },
+      }),
+    ).toBe(2);
+    await expect(prisma.horse.delete({ where: { id: ids.horse } })).rejects.toMatchObject({
+      code: 'P2003',
+    });
+    await expect(
+      prisma.competitionEvent.delete({ where: { id: ids.event } }),
+    ).rejects.toMatchObject({ code: 'P2003' });
+  });
+
+  it('restricts deletion of an approval actor so approval evidence remains valid', async () => {
+    await prisma.user.create({
+      data: {
+        id: ids.approver,
+        email: `approver-${ids.approver}@example.test`,
+        displayName: 'Constraint Approval Actor',
+      },
+    });
+    await prisma.competitionResult.update({
+      where: { id: ids.result },
+      data: { approvedAt: new Date(), approvedById: ids.approver },
+    });
+
+    await expect(prisma.user.delete({ where: { id: ids.approver } })).rejects.toMatchObject({
+      code: 'P2003',
+    });
+
+    await prisma.competitionResult.update({
+      where: { id: ids.result },
+      data: { approvedAt: null, approvedById: null },
     });
   });
 

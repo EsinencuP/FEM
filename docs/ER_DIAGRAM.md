@@ -8,6 +8,8 @@ erDiagram
     Role ||--o{ UserRole : assigns
     User o|--o{ AuditLog : acts
     User o|--o{ ImportBatch : creates
+    User o|--o{ CompetitionResult : approves
+    User o|--o{ RankingRuleSet : approves
     ImportBatch ||--o{ ImportRow : contains
     MediaFile o|--o{ Document : stores
     Document o|--o{ ExternalIdentifier : proves
@@ -19,6 +21,9 @@ erDiagram
     NationalFederation o|--o{ Athlete : affiliates
     Country o|--o{ Horse : born_in
     Country o|--o{ Owner : locates
+    MediaFile o|--o{ Athlete : photo
+    MediaFile o|--o{ Horse : image
+    MediaFile o|--o{ CompetitionEvent : cover
 
     Athlete ||--o{ AthleteClubMembership : has_history
     Club ||--o{ AthleteClubMembership : has_members
@@ -27,6 +32,9 @@ erDiagram
     Discipline o|--o{ AthleteHorseRelation : scopes
     Horse ||--o{ HorseOwnership : has_history
     Owner ||--o{ HorseOwnership : owns
+    Document o|--o{ AthleteClubMembership : sources
+    Document o|--o{ AthleteHorseRelation : sources
+    Document o|--o{ HorseOwnership : sources
 
     CompetitionEvent ||--o{ CompetitionClass : contains
     Discipline ||--o{ CompetitionClass : classifies
@@ -39,6 +47,7 @@ erDiagram
 
     Discipline o|--o{ RankingDefinition : scopes
     RankingDefinition ||--o{ RankingRuleSet : versions
+    Document o|--o{ RankingRuleSet : sources
     RankingDefinition ||--o{ RankingPeriod : divides
     RankingPeriod ||--o{ RankingSnapshot : captures
     RankingRuleSet o|--o{ RankingSnapshot : governs
@@ -57,4 +66,4 @@ erDiagram
 - Ranking snapshots are historical revisions. Recalculation creates a new graph.
 - Athlete/horse pair ranking entries use both FKs, not a fabricated pair identifier.
 - Archive does not cascade into relation history, results, identifiers or rankings.
-
+- Approval actor relations are restrictive; presentation-media and non-approval optional actor relations may use `SET NULL`.

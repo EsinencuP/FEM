@@ -24,10 +24,13 @@ export class ZodValidationPipe implements PipeTransform<unknown> {
 
     if (!result.success) {
       throw new BadRequestException({
-        statusCode: 400,
-        error: 'Bad Request',
         message: 'Request validation failed',
-        issues: z.treeifyError(result.error),
+        code: 'VALIDATION_ERROR',
+        details: result.error.issues.map((issue) => ({
+          path: issue.path.join('.'),
+          message: issue.message,
+          code: issue.code,
+        })),
       });
     }
 

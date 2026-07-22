@@ -19,7 +19,7 @@ Lead Architect reviewed proposals 00–04, `ENTITY_MATRIX.md`, identifier and de
 7. Publication starts as `DRAFT` and changes separately from creation/calculation. Published rows require `publishedAt`; approval pairs require both actor and timestamp.
 8. Ranking uses definition, versioned rule set, period, immutable snapshot revisions, entries and result evidence. No formula, coefficient, tie-breaker, eligibility rule or dropped-result policy is implemented.
 9. Ranking subjects use explicit nullable athlete/horse FKs plus a SQL subject-shape check and three partial unique indexes. Rank is not unique.
-10. Historical/evidence relations use restrictive deletion. Presentation media and optional human actors may use `SET NULL`. Normal runtime performs soft delete/archive, not physical deletion.
+10. Historical/evidence relations use restrictive deletion. Presentation media and optional non-approval human actors may use `SET NULL`; approval actors use `RESTRICT` because actor and timestamp form one evidence pair. Normal runtime performs soft delete/archive, not physical deletion.
 11. JSONB is limited to redacted audit snapshots, import evidence, additional metadata and versioned ranking configuration. It does not replace relationships, metrics, results or ranking entries.
 12. Demo records are explicitly marked where applicable. The only seeded ranking snapshot is `isDemo=true`, `calculationMethod=DEMO`, `publicationStatus=DRAFT`.
 
@@ -50,4 +50,3 @@ The database cannot express every cross-table rule without a registry or trigger
 - frozen snapshot/rule-set immutability and acyclic predecessor links.
 
 These limitations are accepted only for local v1 and are recorded in `OPEN_QUESTIONS.md` before production use.
-

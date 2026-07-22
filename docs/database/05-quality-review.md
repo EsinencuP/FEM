@@ -159,7 +159,8 @@ Do not populate these fields with placeholders such as `UNKNOWN`, zero, current 
 | ranking entry/source links -> snapshot/subjects/results | `RESTRICT`                                      | preserve published/frozen history                                |
 | identifiers/results/rules -> source document            | `RESTRICT`                                      | preserve provenance                                              |
 | presentation image/cover -> media                       | `SET NULL`                                      | missing media must not delete domain data                        |
-| optional human actor/verifier/approver                  | `SET NULL` only if audit/source context remains | user deactivation/removal must not destroy evidence              |
+| optional non-approval actor/verifier                    | `SET NULL` only if audit/source context remains | user deactivation/removal must not destroy evidence              |
+| approval actor paired with approval timestamp           | `RESTRICT`                                      | clearing only the FK would violate the pair and destroy evidence |
 | child metrics/entries                                   | no cascade in normal runtime                    | even dependent rows have evidence value after publication/freeze |
 
 Prisma `Cascade` is not accepted as a shortcut for local cleanup. Test cleanup should delete isolated test rows in an explicit dependency order or use an isolated disposable database.

@@ -1,6 +1,7 @@
 # Database v1 Data Dictionary
 
-- Status: accepted design before Prisma integration
+- Status: audited MVP database baseline
+- Baseline migration: `20260722204033_mvp_database_stabilization` (after `20260722201238_initial_database_v1`)
 - PostgreSQL: 16
 - ORM: Prisma 6
 - Legend: `R` required, `N` nullable, `U` unique, `P` provisional semantics
@@ -9,15 +10,15 @@ All `id` fields are internal UUID primary keys. Unless noted, mutable entities i
 
 ## Internal enums
 
-| Enum | Values | Meaning |
-| --- | --- | --- |
-| `RecordStatus` | `DRAFT`, `ACTIVE`, `INACTIVE`, `ARCHIVED` | internal lifecycle, not a Federation code |
-| `PublicationStatus` | `DRAFT`, `PUBLISHED`, `WITHDRAWN` | explicit visibility state |
-| `VerificationStatus` | `UNVERIFIED`, `VERIFIED`, `CONFLICT`, `REJECTED` | internal source-review state |
-| `ImportBatchStatus` | `PENDING`, `PROCESSING`, `COMPLETED`, `PARTIAL`, `FAILED` | technical import state |
-| `ImportRowStatus` | `PENDING`, `VALIDATED`, `IMPORTED`, `SKIPPED`, `CONFLICT`, `FAILED` | technical row state |
-| `RankingSubjectType` | `ATHLETE`, `HORSE`, `ATHLETE_HORSE_PAIR` | technical subject shape |
-| `RankingCalculationStatus` | `DRAFT`, `PREPARING`, `FROZEN`, `FAILED`, `SUPERSEDED` | storage/calculation lifecycle; no formula |
+| Enum                       | Values                                                              | Meaning                                   |
+| -------------------------- | ------------------------------------------------------------------- | ----------------------------------------- |
+| `RecordStatus`             | `DRAFT`, `ACTIVE`, `INACTIVE`, `ARCHIVED`                           | internal lifecycle, not a Federation code |
+| `PublicationStatus`        | `DRAFT`, `PUBLISHED`, `WITHDRAWN`                                   | explicit visibility state                 |
+| `VerificationStatus`       | `UNVERIFIED`, `VERIFIED`, `CONFLICT`, `REJECTED`                    | internal source-review state              |
+| `ImportBatchStatus`        | `PENDING`, `PROCESSING`, `COMPLETED`, `PARTIAL`, `FAILED`           | technical import state                    |
+| `ImportRowStatus`          | `PENDING`, `VALIDATED`, `IMPORTED`, `SKIPPED`, `CONFLICT`, `FAILED` | technical row state                       |
+| `RankingSubjectType`       | `ATHLETE`, `HORSE`, `ATHLETE_HORSE_PAIR`                            | technical subject shape                   |
+| `RankingCalculationStatus` | `DRAFT`, `PREPARING`, `FROZEN`, `FAILED`, `SUPERSEDED`              | storage/calculation lifecycle; no formula |
 
 ## System and governance
 
@@ -152,7 +153,7 @@ All `id` fields are internal UUID primary keys. Unless noted, mutable entities i
 ## Deletion and visibility
 
 - Domain, history, provenance and ranking FKs use `RESTRICT`/`NO ACTION`.
-- Optional presentation media and human actor FKs may use `SET NULL`.
+- Optional presentation media and non-approval actor FKs may use `SET NULL`.
+- `CompetitionResult.approvedById` and `RankingRuleSet.approvedById` use `RESTRICT`, because clearing the actor alone would violate the paired approval invariant and destroy evidence.
 - Public queries must filter archive, publication state and demo boundary.
 - `archivedAt` is not legal erasure. Production retention/privacy policy remains open.
-

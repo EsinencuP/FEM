@@ -32,6 +32,7 @@
 - Каковы сроки хранения, anonymization/legal erasure и audit retention по требованиям Молдовы и ЕС?
 - Нужен ли в следующей версии database-enforced entity registry вместо application-enforced polymorphic targets?
 - Кто может merge, verify, archive, restore, approve и publish; нужен ли four-eyes control?
+- Как выполнять юридически требуемую анонимизацию approval actor без потери неизменяемого доказательства утверждения?
 
 ## Official identifiers and imports
 

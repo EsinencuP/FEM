@@ -56,6 +56,7 @@
 - Archive/restore являются явными audited actions.
 - Архивация не каскадируется на историю клубов, владельцев, спортсмен–лошадь, результаты, audit, imports или external identifiers.
 - Для historical/evidence foreign keys используется `RESTRICT`/`NO ACTION`, если иное не обосновано отдельным решением.
+- Approval actor является частью evidence pair: `CompetitionResult.approvedById` и `RankingRuleSet.approvedById` используют `RESTRICT`; для удаления actor approval сначала должен быть явно и аудируемо отозван.
 - Cascade допустим только для зависимых технических записей без самостоятельной исторической/доказательной ценности и должен быть документирован.
 - Hard delete допустим только для контролируемой очистки local demo/test, rejected pre-acceptance staging data или утверждённого legal erasure workflow.
 - Retention, anonymization и legal erasure requirements по Молдове/ЕС остаются открытым вопросом; soft delete сам по себе не является compliance policy.
@@ -77,7 +78,7 @@
 
 ## Prisma schema и миграции
 
-- Исходный инфраструктурный этап содержал только `generator client` и `datasource db`; предметные модели добавляются только после архитектурного согласования текущего этапа.
+- Исторический инфраструктурный этап содержал только `generator client` и `datasource db`; текущий MVP baseline содержит согласованные модели Database v1 и не расширяется без отдельного архитектурного решения.
 - Каждое изменение schema сопровождается именованной migration и review сгенерированного SQL.
 - `prisma migrate dev` разрешён только для локальной development database.
 - `prisma migrate deploy` применяется в controlled deployment к заранее проверенным миграциям.

@@ -18,53 +18,53 @@ The system must not manufacture a value to fill an absent field. In particular, 
 
 ## Core result fields
 
-| Field | Storage | Nullability | Source and meaning | Validation | Decision |
-| --- | --- | --- | --- | --- | --- |
-| `competitionClassId` | UUID FK | required | Class in which the performance occurred | Referenced class must exist; no event-only result | confirmed |
-| `athleteId` | UUID FK | required | Athlete in the source result | Referenced athlete must exist; no generated official ID | confirmed |
-| `horseId` | UUID FK | required | Horse in the source result | Referenced horse must exist; no generated official ID | confirmed |
-| `rank` | integer | nullable | Published placing | Must be greater than zero when present; ties and rank display rules remain provisional | confirmed structure |
-| `statusId` | UUID FK | nullable | Source-backed sports outcome status | References `ResultStatus`; code semantics cannot be hard-coded | confirmed structure, provisional vocabulary |
-| `resultDisplay` | text | nullable | Exact human-readable result representation suitable for display | Trim; retain meaningful source punctuation; do not use as numeric truth | confirmed |
-| `penalties` | decimal | nullable | Source penalties | Precision, sign and discipline applicability are provisional | provisional semantics |
-| `timeSeconds` | decimal | nullable | Source duration normalized to seconds where safe | Non-negative unless an approved source says otherwise; retain source display separately | provisional semantics |
-| `points` | decimal | nullable | Points stated for this competition result | Must not be treated as ranking points automatically | provisional semantics |
-| `bonus` | decimal | nullable | Source-stated bonus value | Never calculate without an approved rule | provisional semantics |
-| `sourceDocumentId` | UUID FK | nullable | Document that substantiates the result | Referenced document must exist; restrict deletion for published results | confirmed |
-| `sourceReference` | text | nullable | URL, page, sheet/cell or other reviewable locator | Validate URL only when the source type promises a URL; sanitize public output | confirmed |
-| `publicationStatus` | internal enum/reference | required | Internal publishing workflow | Default draft; publishing requires a separate command | confirmed structure, provisional extended states |
-| `approvedAt` | timestamp with timezone | nullable | Editorial approval timestamp | Pair with `approvedById`; does not claim sporting certification | confirmed |
-| `approvedById` | UUID FK | nullable | Internal user responsible for approval | Pair with `approvedAt`; authorization belongs in service layer | confirmed |
-| `publishedAt` | timestamp with timezone | nullable | First/current explicit publication timestamp | Required for public state; exact republish history is in audit | confirmed addition |
-| `isDemo` | boolean | required | Demo-data separation | Must agree with related seed/demo graph | confirmed |
-| `archivedAt` | timestamp with timezone | nullable | Soft-delete/archive marker | Archived rows are excluded from public queries | confirmed |
+| Field                | Storage                 | Nullability | Source and meaning                                              | Validation                                                                              | Decision                                         |
+| -------------------- | ----------------------- | ----------- | --------------------------------------------------------------- | --------------------------------------------------------------------------------------- | ------------------------------------------------ |
+| `competitionClassId` | UUID FK                 | required    | Class in which the performance occurred                         | Referenced class must exist; no event-only result                                       | confirmed                                        |
+| `athleteId`          | UUID FK                 | required    | Athlete in the source result                                    | Referenced athlete must exist; no generated official ID                                 | confirmed                                        |
+| `horseId`            | UUID FK                 | required    | Horse in the source result                                      | Referenced horse must exist; no generated official ID                                   | confirmed                                        |
+| `rank`               | integer                 | nullable    | Published placing                                               | Must be greater than zero when present; ties and rank display rules remain provisional  | confirmed structure                              |
+| `statusId`           | UUID FK                 | nullable    | Source-backed sports outcome status                             | References `ResultStatus`; code semantics cannot be hard-coded                          | confirmed structure, provisional vocabulary      |
+| `resultDisplay`      | text                    | nullable    | Exact human-readable result representation suitable for display | Trim; retain meaningful source punctuation; do not use as numeric truth                 | confirmed                                        |
+| `penalties`          | decimal                 | nullable    | Source penalties                                                | Precision, sign and discipline applicability are provisional                            | provisional semantics                            |
+| `timeSeconds`        | decimal                 | nullable    | Source duration normalized to seconds where safe                | Non-negative unless an approved source says otherwise; retain source display separately | provisional semantics                            |
+| `points`             | decimal                 | nullable    | Points stated for this competition result                       | Must not be treated as ranking points automatically                                     | provisional semantics                            |
+| `bonus`              | decimal                 | nullable    | Source-stated bonus value                                       | Never calculate without an approved rule                                                | provisional semantics                            |
+| `sourceDocumentId`   | UUID FK                 | nullable    | Document that substantiates the result                          | Referenced document must exist; restrict deletion for published results                 | confirmed                                        |
+| `sourceReference`    | text                    | nullable    | URL, page, sheet/cell or other reviewable locator               | Validate URL only when the source type promises a URL; sanitize public output           | confirmed                                        |
+| `publicationStatus`  | internal enum/reference | required    | Internal publishing workflow                                    | Default draft; publishing requires a separate command                                   | confirmed structure, provisional extended states |
+| `approvedAt`         | timestamp with timezone | nullable    | Editorial approval timestamp                                    | Pair with `approvedById`; does not claim sporting certification                         | confirmed                                        |
+| `approvedById`       | UUID FK                 | nullable    | Internal user responsible for approval                          | Pair with `approvedAt`; authorization belongs in service layer                          | confirmed                                        |
+| `publishedAt`        | timestamp with timezone | nullable    | First/current explicit publication timestamp                    | Required for public state; exact republish history is in audit                          | confirmed addition                               |
+| `isDemo`             | boolean                 | required    | Demo-data separation                                            | Must agree with related seed/demo graph                                                 | confirmed                                        |
+| `archivedAt`         | timestamp with timezone | nullable    | Soft-delete/archive marker                                      | Archived rows are excluded from public queries                                          | confirmed                                        |
 
 ## Standard numeric fields versus metrics
 
 Use a standard `CompetitionResult` numeric field only when the source meaning maps unambiguously to that field. Otherwise create a `ResultMetric`.
 
-| Situation | Store in | Reason |
-| --- | --- | --- |
-| Overall published place | `rank` | Stable cross-discipline structural concept |
-| Official/source status without a place | `statusId` | Normalized dictionary relation |
-| Source result string such as a composite time/score | `resultDisplay` | Preserves source meaning without unsafe parsing |
-| Clearly identified overall penalty | `penalties` | Common requested field, nullable |
-| Clearly identified elapsed time | `timeSeconds` plus `resultDisplay` when needed | Numeric sorting while preserving source rendering |
-| Clearly identified competition points | `points` | Distinct from ranking points |
-| Source-defined bonus | `bonus` | Stored only; never computed by v1 |
-| Judge/round/phase or any additional value | `ResultMetric` | Repeatable, ordered, source-backed structure |
-| Unknown raw import columns | `ImportRow.rawData` | Evidence layer pending mapping; not a public schema substitute |
+| Situation                                           | Store in                                       | Reason                                                         |
+| --------------------------------------------------- | ---------------------------------------------- | -------------------------------------------------------------- |
+| Overall published place                             | `rank`                                         | Stable cross-discipline structural concept                     |
+| Official/source status without a place              | `statusId`                                     | Normalized dictionary relation                                 |
+| Source result string such as a composite time/score | `resultDisplay`                                | Preserves source meaning without unsafe parsing                |
+| Clearly identified overall penalty                  | `penalties`                                    | Common requested field, nullable                               |
+| Clearly identified elapsed time                     | `timeSeconds` plus `resultDisplay` when needed | Numeric sorting while preserving source rendering              |
+| Clearly identified competition points               | `points`                                       | Distinct from ranking points                                   |
+| Source-defined bonus                                | `bonus`                                        | Stored only; never computed by v1                              |
+| Judge/round/phase or any additional value           | `ResultMetric`                                 | Repeatable, ordered, source-backed structure                   |
+| Unknown raw import columns                          | `ImportRow.rawData`                            | Evidence layer pending mapping; not a public schema substitute |
 
 ## ResultMetric contract
 
-| Field | Storage | Nullability | Validation | Decision |
-| --- | --- | --- | --- | --- |
-| `competitionResultId` | UUID FK | required | Parent result must exist | confirmed |
-| `metricCode` | normalized text | required | Non-empty; source mapping documented; no invented official semantics | confirmed structure, provisional values |
-| `numericValue` | decimal | conditionally required | Exactly one of numeric/text values is present | confirmed |
-| `textValue` | text | conditionally required | Exactly one of numeric/text values is present | confirmed |
-| `unit` | text | nullable | Preserve source unit; no conversion without approved rule | provisional vocabulary |
-| `sortOrder` | integer | required | Greater than or equal to zero | confirmed |
+| Field                 | Storage         | Nullability            | Validation                                                           | Decision                                |
+| --------------------- | --------------- | ---------------------- | -------------------------------------------------------------------- | --------------------------------------- |
+| `competitionResultId` | UUID FK         | required               | Parent result must exist                                             | confirmed                               |
+| `metricCode`          | normalized text | required               | Non-empty; source mapping documented; no invented official semantics | confirmed structure, provisional values |
+| `numericValue`        | decimal         | conditionally required | Exactly one of numeric/text values is present                        | confirmed                               |
+| `textValue`           | text            | conditionally required | Exactly one of numeric/text values is present                        | confirmed                               |
+| `unit`                | text            | nullable               | Preserve source unit; no conversion without approved rule            | provisional vocabulary                  |
+| `sortOrder`           | integer         | required               | Greater than or equal to zero                                        | confirmed                               |
 
 Metric codes are not a hidden scoring engine. They identify imported/published measurements only. A code must carry source documentation outside application constants. No list of discipline-specific metric codes is approved in v1.
 
@@ -138,13 +138,13 @@ This shape supports statuses such as DNS, DNF, RET, EL or disqualification once 
 
 `ResultStatus` and `publicationStatus` solve different problems:
 
-| Concept | Meaning | Public? | Controlled by |
-| --- | --- | --- | --- |
-| `ResultStatus` | Sporting outcome copied from a source | yes, when result is published | Approved result-status dictionary/source |
-| `publicationStatus` | Platform visibility workflow | no as raw editorial state | Authorized platform command |
-| `approvedAt` / `approvedById` | Editorial approval evidence | internal | Authorization policy |
-| `publishedAt` | Publication event timestamp | usually yes | Explicit publication transition |
-| `archivedAt` | Soft-deletion/archive marker | no | Authorized archive transition |
+| Concept                       | Meaning                               | Public?                       | Controlled by                            |
+| ----------------------------- | ------------------------------------- | ----------------------------- | ---------------------------------------- |
+| `ResultStatus`                | Sporting outcome copied from a source | yes, when result is published | Approved result-status dictionary/source |
+| `publicationStatus`           | Platform visibility workflow          | no as raw editorial state     | Authorized platform command              |
+| `approvedAt` / `approvedById` | Editorial approval evidence           | internal                      | Authorization policy                     |
+| `publishedAt`                 | Publication event timestamp           | usually yes                   | Explicit publication transition          |
+| `archivedAt`                  | Soft-deletion/archive marker          | no                            | Authorized archive transition            |
 
 An imported or approved-looking status never auto-publishes a result. Public REST queries must explicitly select public publication state and non-archived rows.
 
@@ -159,15 +159,15 @@ An imported or approved-looking status never auto-publishes a result. Public RES
 
 ## Index summary
 
-| Table | Index | Primary query |
-| --- | --- | --- |
-| `CompetitionResult` | `(competitionClassId, publicationStatus, rank)` | Public class result table |
-| `CompetitionResult` | `(athleteId, publicationStatus, createdAt)` | Athlete result history |
-| `CompetitionResult` | `(horseId, publicationStatus, createdAt)` | Horse result history |
-| `CompetitionResult` | `(statusId, publicationStatus)` | Result-status filtering |
-| `CompetitionResult` | `(sourceDocumentId)` | Provenance lookup |
-| `ResultMetric` | `(competitionResultId, sortOrder)` | Ordered metrics for a result |
-| `ResultMetric` | unique `(competitionResultId, metricCode, sortOrder)` | Exact metric-slot duplicate prevention |
+| Table               | Index                                                 | Primary query                          |
+| ------------------- | ----------------------------------------------------- | -------------------------------------- |
+| `CompetitionResult` | `(competitionClassId, publicationStatus, rank)`       | Public class result table              |
+| `CompetitionResult` | `(athleteId, publicationStatus, createdAt)`           | Athlete result history                 |
+| `CompetitionResult` | `(horseId, publicationStatus, createdAt)`             | Horse result history                   |
+| `CompetitionResult` | `(statusId, publicationStatus)`                       | Result-status filtering                |
+| `CompetitionResult` | `(sourceDocumentId)`                                  | Provenance lookup                      |
+| `ResultMetric`      | `(competitionResultId, sortOrder)`                    | Ordered metrics for a result           |
+| `ResultMetric`      | unique `(competitionResultId, metricCode, sortOrder)` | Exact metric-slot duplicate prevention |
 
 ## Test cases required from this contract
 

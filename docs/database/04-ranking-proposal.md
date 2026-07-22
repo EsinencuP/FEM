@@ -71,19 +71,19 @@ RankingDefinition
 
 Определяет устойчивую категорию рейтинга: его название, дисциплину и тип субъекта. Не содержит формулу.
 
-| Field | PostgreSQL / Prisma | Required | Unique | Source | Nature | Visibility | Decision | Notes |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `id` | `uuid / String @db.Uuid` | yes | PK | system | internal | internal | confirmed | Неофициальный UUID, никогда не переиспользуется. |
-| `code` | `text / String` | yes | global normalized unique | administrator | internal | public | confirmed structure, provisional values | Стабильный технический ключ; не официальный код FEI. |
-| `name` | `text / String` | yes | no | administrator/source | mixed | public | confirmed | Отображаемое название. |
-| `description` | `text / String?` | no | no | administrator/source | mixed | public | provisional | Не должно описывать неподтверждённую формулу как официальную. |
-| `disciplineId` | `uuid / String? @db.Uuid` | no | FK | administrator/source | mixed | public | provisional | Nullable, чтобы не объявлять все рейтинги дисциплинарными до подтверждения. |
-| `subjectType` | technical enum/code | yes | no | administrator | internal | public | confirmed structure | `ATHLETE`, `HORSE` или `ATHLETE_HORSE_PAIR`; не спортивный официальный словарь. |
-| `status` | technical enum/code | yes | no | system/administrator | internal | internal | confirmed field, provisional vocabulary | Lifecycle definition; не publication status snapshot. |
-| `isDemo` | `boolean / Boolean` | yes | no | system | internal | internal | confirmed | Demo definitions не смешиваются с production dataset. |
-| `archivedAt` | `timestamptz / DateTime?` | no | no | system/administrator | internal | internal | confirmed | Soft delete. |
-| `createdAt` | `timestamptz / DateTime` | yes | no | system | internal | internal | confirmed | Timestamp создания. |
-| `updatedAt` | `timestamptz / DateTime` | yes | no | system | internal | internal | confirmed | Timestamp изменения. |
+| Field          | PostgreSQL / Prisma       | Required | Unique                   | Source               | Nature   | Visibility | Decision                                | Notes                                                                           |
+| -------------- | ------------------------- | -------- | ------------------------ | -------------------- | -------- | ---------- | --------------------------------------- | ------------------------------------------------------------------------------- |
+| `id`           | `uuid / String @db.Uuid`  | yes      | PK                       | system               | internal | internal   | confirmed                               | Неофициальный UUID, никогда не переиспользуется.                                |
+| `code`         | `text / String`           | yes      | global normalized unique | administrator        | internal | public     | confirmed structure, provisional values | Стабильный технический ключ; не официальный код FEI.                            |
+| `name`         | `text / String`           | yes      | no                       | administrator/source | mixed    | public     | confirmed                               | Отображаемое название.                                                          |
+| `description`  | `text / String?`          | no       | no                       | administrator/source | mixed    | public     | provisional                             | Не должно описывать неподтверждённую формулу как официальную.                   |
+| `disciplineId` | `uuid / String? @db.Uuid` | no       | FK                       | administrator/source | mixed    | public     | provisional                             | Nullable, чтобы не объявлять все рейтинги дисциплинарными до подтверждения.     |
+| `subjectType`  | technical enum/code       | yes      | no                       | administrator        | internal | public     | confirmed structure                     | `ATHLETE`, `HORSE` или `ATHLETE_HORSE_PAIR`; не спортивный официальный словарь. |
+| `status`       | technical enum/code       | yes      | no                       | system/administrator | internal | internal   | confirmed field, provisional vocabulary | Lifecycle definition; не publication status snapshot.                           |
+| `isDemo`       | `boolean / Boolean`       | yes      | no                       | system               | internal | internal   | confirmed                               | Demo definitions не смешиваются с production dataset.                           |
+| `archivedAt`   | `timestamptz / DateTime?` | no       | no                       | system/administrator | internal | internal   | confirmed                               | Soft delete.                                                                    |
+| `createdAt`    | `timestamptz / DateTime`  | yes      | no                       | system               | internal | internal   | confirmed                               | Timestamp создания.                                                             |
+| `updatedAt`    | `timestamptz / DateTime`  | yes      | no                       | system               | internal | internal   | confirmed                               | Timestamp изменения.                                                            |
 
 Рекомендуемые индексы:
 
@@ -95,27 +95,27 @@ RankingDefinition
 
 Версионируемая конфигурация, которая описывает provenance и будущие параметры расчёта. Наличие строки не означает, что правила официальны или что платформа умеет выполнить расчёт.
 
-| Field | PostgreSQL / Prisma | Required | Unique | Source | Nature | Visibility | Decision | Notes |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `id` | `uuid / String @db.Uuid` | yes | PK | system | internal | internal | confirmed | Внутренний UUID. |
-| `rankingDefinitionId` | `uuid / String @db.Uuid` | yes | FK | system | internal | internal | confirmed | Версия принадлежит одному definition. |
-| `version` | `integer / Int` | yes | scoped | system/administrator | internal | internal | confirmed | Положительный монотонный номер внутри definition. |
-| `name` | `text / String` | yes | no | administrator/source | mixed | internal | confirmed | Понятное название версии. |
-| `calculationMethod` | `text / String?` | no | no | administrator/source | mixed | internal | provisional | Метод не придумывается. Для demo допускается только явно заданное `DEMO`. |
-| `configuration` | `jsonb / Json?` | no | no | approved configuration | mixed | internal | confirmed container, provisional content | Версионированные параметры; null или пустой объект не заменяется вымышленной формулой. |
-| `configurationSchemaVersion` | `text / String?` | no | no | system | internal | internal | confirmed concept | Версия Zod/JSON contract, если configuration присутствует. |
-| `engineVersion` | `text / String?` | no | no | build/deployment | internal | internal | provisional | Версия будущего детерминированного калькулятора; v1 calculator отсутствует. |
-| `status` | technical enum/code | yes | no | system/administrator | internal | internal | confirmed field, provisional vocabulary | Draft/approved/retired semantics требуют governance. |
-| `effectiveFrom` | `date / DateTime? @db.Date` | no | no | official source/administrator | official | internal | provisional | Не заполнять без подтверждённой области действия. |
-| `effectiveTo` | `date / DateTime? @db.Date` | no | no | official source/administrator | official | internal | provisional | Если задано, не раньше `effectiveFrom`. |
-| `sourceDocumentId` | `uuid / String? @db.Uuid` | no | FK | source workflow | internal | internal | confirmed | Документ-основание, если его разрешено хранить. |
-| `sourceReference` | `text / String?` | no | no | source workflow | mixed | internal | confirmed | Нечувствительная ссылка/цитата на источник. |
-| `approvedAt` | `timestamptz / DateTime?` | no | no | governance | internal | internal | provisional workflow | Не равнозначно официальному утверждению Федерацией без policy. |
-| `approvedById` | `uuid / String? @db.Uuid` | no | FK | system | internal | internal | provisional workflow | Должно быть парным с `approvedAt`. |
-| `isDemo` | `boolean / Boolean` | yes | no | system | internal | internal | confirmed | Должен совпадать с definition/snapshot graph. |
-| `archivedAt` | `timestamptz / DateTime?` | no | no | system/administrator | internal | internal | confirmed | Используется вместо hard delete. |
-| `createdAt` | `timestamptz / DateTime` | yes | no | system | internal | internal | confirmed | Timestamp создания. |
-| `updatedAt` | `timestamptz / DateTime` | yes | no | system | internal | internal | confirmed | Timestamp изменения draft-версии. |
+| Field                        | PostgreSQL / Prisma         | Required | Unique | Source                        | Nature   | Visibility | Decision                                 | Notes                                                                                  |
+| ---------------------------- | --------------------------- | -------- | ------ | ----------------------------- | -------- | ---------- | ---------------------------------------- | -------------------------------------------------------------------------------------- |
+| `id`                         | `uuid / String @db.Uuid`    | yes      | PK     | system                        | internal | internal   | confirmed                                | Внутренний UUID.                                                                       |
+| `rankingDefinitionId`        | `uuid / String @db.Uuid`    | yes      | FK     | system                        | internal | internal   | confirmed                                | Версия принадлежит одному definition.                                                  |
+| `version`                    | `integer / Int`             | yes      | scoped | system/administrator          | internal | internal   | confirmed                                | Положительный монотонный номер внутри definition.                                      |
+| `name`                       | `text / String`             | yes      | no     | administrator/source          | mixed    | internal   | confirmed                                | Понятное название версии.                                                              |
+| `calculationMethod`          | `text / String?`            | no       | no     | administrator/source          | mixed    | internal   | provisional                              | Метод не придумывается. Для demo допускается только явно заданное `DEMO`.              |
+| `configuration`              | `jsonb / Json?`             | no       | no     | approved configuration        | mixed    | internal   | confirmed container, provisional content | Версионированные параметры; null или пустой объект не заменяется вымышленной формулой. |
+| `configurationSchemaVersion` | `text / String?`            | no       | no     | system                        | internal | internal   | confirmed concept                        | Версия Zod/JSON contract, если configuration присутствует.                             |
+| `engineVersion`              | `text / String?`            | no       | no     | build/deployment              | internal | internal   | provisional                              | Версия будущего детерминированного калькулятора; v1 calculator отсутствует.            |
+| `status`                     | technical enum/code         | yes      | no     | system/administrator          | internal | internal   | confirmed field, provisional vocabulary  | Draft/approved/retired semantics требуют governance.                                   |
+| `effectiveFrom`              | `date / DateTime? @db.Date` | no       | no     | official source/administrator | official | internal   | provisional                              | Не заполнять без подтверждённой области действия.                                      |
+| `effectiveTo`                | `date / DateTime? @db.Date` | no       | no     | official source/administrator | official | internal   | provisional                              | Если задано, не раньше `effectiveFrom`.                                                |
+| `sourceDocumentId`           | `uuid / String? @db.Uuid`   | no       | FK     | source workflow               | internal | internal   | confirmed                                | Документ-основание, если его разрешено хранить.                                        |
+| `sourceReference`            | `text / String?`            | no       | no     | source workflow               | mixed    | internal   | confirmed                                | Нечувствительная ссылка/цитата на источник.                                            |
+| `approvedAt`                 | `timestamptz / DateTime?`   | no       | no     | governance                    | internal | internal   | provisional workflow                     | Не равнозначно официальному утверждению Федерацией без policy.                         |
+| `approvedById`               | `uuid / String? @db.Uuid`   | no       | FK     | system                        | internal | internal   | provisional workflow                     | Должно быть парным с `approvedAt`.                                                     |
+| `isDemo`                     | `boolean / Boolean`         | yes      | no     | system                        | internal | internal   | confirmed                                | Должен совпадать с definition/snapshot graph.                                          |
+| `archivedAt`                 | `timestamptz / DateTime?`   | no       | no     | system/administrator          | internal | internal   | confirmed                                | Используется вместо hard delete.                                                       |
+| `createdAt`                  | `timestamptz / DateTime`    | yes      | no     | system                        | internal | internal   | confirmed                                | Timestamp создания.                                                                    |
+| `updatedAt`                  | `timestamptz / DateTime`    | yes      | no     | system                        | internal | internal   | confirmed                                | Timestamp изменения draft-версии.                                                      |
 
 Ограничения:
 
@@ -137,19 +137,19 @@ RankingDefinition
 
 Период группирует snapshots одной ranking definition. Календарные границы nullable, потому что официальная модель периодов, rolling windows и season cutoffs пока неизвестна.
 
-| Field | PostgreSQL / Prisma | Required | Unique | Source | Nature | Visibility | Decision | Notes |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `id` | `uuid / String @db.Uuid` | yes | PK | system | internal | internal | confirmed | Внутренний UUID. |
-| `rankingDefinitionId` | `uuid / String @db.Uuid` | yes | FK | system | internal | internal | confirmed | Период принадлежит одному definition. |
-| `code` | `text / String` | yes | scoped | administrator/source | internal | public | confirmed structure, provisional values | Технический ключ периода внутри definition. |
-| `label` | `text / String` | yes | no | administrator/source | mixed | public | confirmed | Отображаемое название периода. |
-| `startDate` | `date / DateTime? @db.Date` | no | no | official source/administrator | official | public | provisional | Nullable для snapshot-only/неполного источника. |
-| `endDate` | `date / DateTime? @db.Date` | no | no | official source/administrator | official | public | provisional | Если задано, не раньше `startDate`. |
-| `status` | technical enum/code | yes | no | system/administrator | internal | internal | confirmed field, provisional vocabulary | Не определяет официальную eligibility. |
-| `isDemo` | `boolean / Boolean` | yes | no | system | internal | internal | confirmed | Совпадает с definition graph. |
-| `archivedAt` | `timestamptz / DateTime?` | no | no | system/administrator | internal | internal | confirmed | Soft delete. |
-| `createdAt` | `timestamptz / DateTime` | yes | no | system | internal | internal | confirmed | Timestamp создания. |
-| `updatedAt` | `timestamptz / DateTime` | yes | no | system | internal | internal | confirmed | Timestamp изменения. |
+| Field                 | PostgreSQL / Prisma         | Required | Unique | Source                        | Nature   | Visibility | Decision                                | Notes                                           |
+| --------------------- | --------------------------- | -------- | ------ | ----------------------------- | -------- | ---------- | --------------------------------------- | ----------------------------------------------- |
+| `id`                  | `uuid / String @db.Uuid`    | yes      | PK     | system                        | internal | internal   | confirmed                               | Внутренний UUID.                                |
+| `rankingDefinitionId` | `uuid / String @db.Uuid`    | yes      | FK     | system                        | internal | internal   | confirmed                               | Период принадлежит одному definition.           |
+| `code`                | `text / String`             | yes      | scoped | administrator/source          | internal | public     | confirmed structure, provisional values | Технический ключ периода внутри definition.     |
+| `label`               | `text / String`             | yes      | no     | administrator/source          | mixed    | public     | confirmed                               | Отображаемое название периода.                  |
+| `startDate`           | `date / DateTime? @db.Date` | no       | no     | official source/administrator | official | public     | provisional                             | Nullable для snapshot-only/неполного источника. |
+| `endDate`             | `date / DateTime? @db.Date` | no       | no     | official source/administrator | official | public     | provisional                             | Если задано, не раньше `startDate`.             |
+| `status`              | technical enum/code         | yes      | no     | system/administrator          | internal | internal   | confirmed field, provisional vocabulary | Не определяет официальную eligibility.          |
+| `isDemo`              | `boolean / Boolean`         | yes      | no     | system                        | internal | internal   | confirmed                               | Совпадает с definition graph.                   |
+| `archivedAt`          | `timestamptz / DateTime?`   | no       | no     | system/administrator          | internal | internal   | confirmed                               | Soft delete.                                    |
+| `createdAt`           | `timestamptz / DateTime`    | yes      | no     | system                        | internal | internal   | confirmed                               | Timestamp создания.                             |
+| `updatedAt`           | `timestamptz / DateTime`    | yes      | no     | system                        | internal | internal   | confirmed                               | Timestamp изменения.                            |
 
 Ограничения и индексы:
 
@@ -228,11 +228,11 @@ Entry хранит позицию одного субъекта внутри sna
 
 Subject shape, обеспечиваемая миграционным SQL `CHECK`:
 
-| `subjectType` | `athleteId` | `horseId` |
-| --- | --- | --- |
-| `ATHLETE` | required | null |
-| `HORSE` | null | required |
-| `ATHLETE_HORSE_PAIR` | required | required |
+| `subjectType`        | `athleteId` | `horseId` |
+| -------------------- | ----------- | --------- |
+| `ATHLETE`            | required    | null      |
+| `HORSE`              | null        | required  |
+| `ATHLETE_HORSE_PAIR` | required    | required  |
 
 Ограничения:
 
@@ -376,4 +376,3 @@ Hard delete не является штатным API-процессом. FK от
 - Какие поля рейтинга и source provenance публичны?
 - Какая Numeric precision/scale нужна для points и contribution?
 - Нужна ли криптографическая подпись/хеш frozen rule configuration и snapshot dataset?
-

@@ -83,7 +83,7 @@ Verify:
 
 ### Foreign keys
 
-Inventory every FK and its `ON DELETE`/`ON UPDATE` action. Required/history/evidence references default to `RESTRICT`/`NO ACTION`. Only approved presentation/actor relations may use `SET NULL`. No cascade is accepted for historical relations, results, external identifiers, source provenance or ranking history.
+Inventory every FK and its `ON DELETE`/`ON UPDATE` action. Required/history/evidence references default to `RESTRICT`/`NO ACTION`. Only approved presentation/non-approval actor relations may use `SET NULL`; approval evidence uses `RESTRICT`. No cascade is accepted for historical relations, results, external identifiers, source provenance or ranking history.
 
 Verify indexes exist on frequently joined/referenced child columns according to `INDEX_STRATEGY.md`.
 

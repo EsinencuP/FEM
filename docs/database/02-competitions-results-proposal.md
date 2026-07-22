@@ -51,26 +51,26 @@ Cardinality and invariants:
 
 The event is the public information container. It does not represent registration or participation.
 
-| Field | PostgreSQL / Prisma type | Required | Unique | Origin | Nature | Visibility | Decision | Notes |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `id` | `uuid / String @db.Uuid` | yes | PK | system | internal | internal | confirmed | Never reused; not an official event number. |
-| `title` | `text / String` | yes | no | editor/import | mixed | public | confirmed | Human-readable title from the selected source. |
-| `slug` | `text / String` | yes | yes | system/editor | internal | public | confirmed | Stable routing key; not an official identifier. Normalize to lowercase ASCII slug form. |
-| `description` | `text / String?` | no | no | editor/import | mixed | public | confirmed | Nullable because the source may not provide a description. |
-| `startDate` | `date / DateTime @db.Date` | yes | no | official source/editor | official | public | confirmed | Date-only unless a future approved requirement adds times/timezone. |
-| `endDate` | `date / DateTime @db.Date` | yes | no | official source/editor | official | public | confirmed | Must be greater than or equal to `startDate`. |
-| `location` | `text / String?` | no | no | official source/editor | mixed | public | confirmed | City/region/free-text locality; nullable while incomplete. |
-| `venue` | `text / String?` | no | no | official source/editor | mixed | public | confirmed | Venue name, kept separate from locality. |
-| `countryId` | `uuid / String? @db.Uuid` | no | FK | official source/editor | mixed | public | confirmed | Nullable for incomplete imported announcements; references `Country`. |
-| `organizerName` | `text / String?` | no | no | official source/editor | official | public | confirmed | Free text until an organizer entity is approved. |
-| `status` | enum or reference | yes | no | editor/import | mixed | conditional | provisional | Operational/event lifecycle vocabulary is not approved. Default should be a neutral internal state, not an official FEI status. |
-| `publicationStatus` | internal enum/reference | yes | no | system/editor | internal | internal | confirmed | Separate from event status; default `DRAFT`. Exact extended vocabulary is provisional. |
-| `coverMediaId` | `uuid / String? @db.Uuid` | no | FK | editor | internal | public | confirmed | Nullable relation to `MediaFile`; deletion should set null, not delete the event. |
-| `publishedAt` | `timestamptz / DateTime?` | no | no | system | internal | public | confirmed | Set only by an explicit publish transition; null for drafts. |
-| `isDemo` | `boolean / Boolean` | yes | no | system | internal | internal | confirmed | Required segregation flag; default false outside seed. |
-| `archivedAt` | `timestamptz / DateTime?` | no | no | system/editor | internal | internal | confirmed | Soft deletion/archive marker. |
-| `createdAt` | `timestamptz / DateTime` | yes | no | system | internal | internal | confirmed | Immutable creation timestamp. |
-| `updatedAt` | `timestamptz / DateTime` | yes | no | system | internal | internal | confirmed | Automatically updated. |
+| Field               | PostgreSQL / Prisma type   | Required | Unique | Origin                 | Nature   | Visibility  | Decision    | Notes                                                                                                                           |
+| ------------------- | -------------------------- | -------- | ------ | ---------------------- | -------- | ----------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `id`                | `uuid / String @db.Uuid`   | yes      | PK     | system                 | internal | internal    | confirmed   | Never reused; not an official event number.                                                                                     |
+| `title`             | `text / String`            | yes      | no     | editor/import          | mixed    | public      | confirmed   | Human-readable title from the selected source.                                                                                  |
+| `slug`              | `text / String`            | yes      | yes    | system/editor          | internal | public      | confirmed   | Stable routing key; not an official identifier. Normalize to lowercase ASCII slug form.                                         |
+| `description`       | `text / String?`           | no       | no     | editor/import          | mixed    | public      | confirmed   | Nullable because the source may not provide a description.                                                                      |
+| `startDate`         | `date / DateTime @db.Date` | yes      | no     | official source/editor | official | public      | confirmed   | Date-only unless a future approved requirement adds times/timezone.                                                             |
+| `endDate`           | `date / DateTime @db.Date` | yes      | no     | official source/editor | official | public      | confirmed   | Must be greater than or equal to `startDate`.                                                                                   |
+| `location`          | `text / String?`           | no       | no     | official source/editor | mixed    | public      | confirmed   | City/region/free-text locality; nullable while incomplete.                                                                      |
+| `venue`             | `text / String?`           | no       | no     | official source/editor | mixed    | public      | confirmed   | Venue name, kept separate from locality.                                                                                        |
+| `countryId`         | `uuid / String? @db.Uuid`  | no       | FK     | official source/editor | mixed    | public      | confirmed   | Nullable for incomplete imported announcements; references `Country`.                                                           |
+| `organizerName`     | `text / String?`           | no       | no     | official source/editor | official | public      | confirmed   | Free text until an organizer entity is approved.                                                                                |
+| `status`            | enum or reference          | yes      | no     | editor/import          | mixed    | conditional | provisional | Operational/event lifecycle vocabulary is not approved. Default should be a neutral internal state, not an official FEI status. |
+| `publicationStatus` | internal enum/reference    | yes      | no     | system/editor          | internal | internal    | confirmed   | Separate from event status; default `DRAFT`. Exact extended vocabulary is provisional.                                          |
+| `coverMediaId`      | `uuid / String? @db.Uuid`  | no       | FK     | editor                 | internal | public      | confirmed   | Nullable relation to `MediaFile`; deletion should set null, not delete the event.                                               |
+| `publishedAt`       | `timestamptz / DateTime?`  | no       | no     | system                 | internal | public      | confirmed   | Set only by an explicit publish transition; null for drafts.                                                                    |
+| `isDemo`            | `boolean / Boolean`        | yes      | no     | system                 | internal | internal    | confirmed   | Required segregation flag; default false outside seed.                                                                          |
+| `archivedAt`        | `timestamptz / DateTime?`  | no       | no     | system/editor          | internal | internal    | confirmed   | Soft deletion/archive marker.                                                                                                   |
+| `createdAt`         | `timestamptz / DateTime`   | yes      | no     | system                 | internal | internal    | confirmed   | Immutable creation timestamp.                                                                                                   |
+| `updatedAt`         | `timestamptz / DateTime`   | yes      | no     | system                 | internal | internal    | confirmed   | Automatically updated.                                                                                                          |
 
 Recommended indexes:
 
@@ -85,19 +85,19 @@ Recommended indexes:
 
 A class is the smallest required competition context for a result. `category` and `level` deliberately remain flexible and nullable until authoritative reference data is provided.
 
-| Field | PostgreSQL / Prisma type | Required | Unique | Origin | Nature | Visibility | Decision | Notes |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `id` | `uuid / String @db.Uuid` | yes | PK | system | internal | internal | confirmed | Internal identifier only. |
-| `competitionEventId` | `uuid / String @db.Uuid` | yes | FK | system/editor | internal | conditional | confirmed | Required parent event. |
-| `title` | `text / String` | yes | no | official source/editor | mixed | public | confirmed | Source title; should not be derived from unknown rules. |
-| `disciplineId` | `uuid / String @db.Uuid` | yes | FK | official source/editor | mixed | public | confirmed | Required normalized discipline reference. |
-| `category` | `text / String?` | no | no | official source/editor | official | public | provisional | No fixed vocabulary until approved. Preserve source spelling. |
-| `level` | `text / String?` | no | no | official source/editor | official | public | provisional | No fixed hierarchy or validation until approved. |
-| `competitionDate` | `date / DateTime? @db.Date` | no | no | official source/editor | official | public | confirmed | Nullable if class schedule is not known; if present, should fall within event dates (service/import validation). |
-| `sortOrder` | `integer / Int` | yes | no | editor/import | internal | public | confirmed | Non-negative display order within the event; default 0. |
-| `status` | enum or reference | yes | no | editor/import | mixed | conditional | provisional | Class lifecycle vocabulary is not approved. Do not reuse sports result-status codes. |
-| `createdAt` | `timestamptz / DateTime` | yes | no | system | internal | internal | confirmed | Immutable creation timestamp. |
-| `updatedAt` | `timestamptz / DateTime` | yes | no | system | internal | internal | confirmed | Automatically updated. |
+| Field                | PostgreSQL / Prisma type    | Required | Unique | Origin                 | Nature   | Visibility  | Decision    | Notes                                                                                                            |
+| -------------------- | --------------------------- | -------- | ------ | ---------------------- | -------- | ----------- | ----------- | ---------------------------------------------------------------------------------------------------------------- |
+| `id`                 | `uuid / String @db.Uuid`    | yes      | PK     | system                 | internal | internal    | confirmed   | Internal identifier only.                                                                                        |
+| `competitionEventId` | `uuid / String @db.Uuid`    | yes      | FK     | system/editor          | internal | conditional | confirmed   | Required parent event.                                                                                           |
+| `title`              | `text / String`             | yes      | no     | official source/editor | mixed    | public      | confirmed   | Source title; should not be derived from unknown rules.                                                          |
+| `disciplineId`       | `uuid / String @db.Uuid`    | yes      | FK     | official source/editor | mixed    | public      | confirmed   | Required normalized discipline reference.                                                                        |
+| `category`           | `text / String?`            | no       | no     | official source/editor | official | public      | provisional | No fixed vocabulary until approved. Preserve source spelling.                                                    |
+| `level`              | `text / String?`            | no       | no     | official source/editor | official | public      | provisional | No fixed hierarchy or validation until approved.                                                                 |
+| `competitionDate`    | `date / DateTime? @db.Date` | no       | no     | official source/editor | official | public      | confirmed   | Nullable if class schedule is not known; if present, should fall within event dates (service/import validation). |
+| `sortOrder`          | `integer / Int`             | yes      | no     | editor/import          | internal | public      | confirmed   | Non-negative display order within the event; default 0.                                                          |
+| `status`             | enum or reference           | yes      | no     | editor/import          | mixed    | conditional | provisional | Class lifecycle vocabulary is not approved. Do not reuse sports result-status codes.                             |
+| `createdAt`          | `timestamptz / DateTime`    | yes      | no     | system                 | internal | internal    | confirmed   | Immutable creation timestamp.                                                                                    |
+| `updatedAt`          | `timestamptz / DateTime`    | yes      | no     | system                 | internal | internal    | confirmed   | Automatically updated.                                                                                           |
 
 Recommended indexes:
 
@@ -112,18 +112,18 @@ Recommended indexes:
 
 This is a data-managed sports result-status dictionary, not the platform publication workflow. No code values are asserted in this proposal; examples such as DNS, DNF, RET, EL and disqualification must be loaded only from an approved source or clearly marked demo/provisional.
 
-| Field | PostgreSQL / Prisma type | Required | Unique | Origin | Nature | Visibility | Decision | Notes |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `id` | `uuid / String @db.Uuid` | yes | PK | system | internal | internal | confirmed | Internal identifier. |
-| `code` | `text / String` | yes | normalized unique | official source/editor | official | public | confirmed structure, provisional values | Store normalized uppercase code; never infer semantics from the code in application logic. |
-| `label` | `text / String` | yes | no | official source/editor | official | public | confirmed structure, provisional values | Display text; localization strategy remains open. |
-| `description` | `text / String?` | no | no | official source/editor | official | public | provisional | Optional source-backed explanation. |
-| `isRanked` | `boolean / Boolean?` | no | no | official source/editor | official | conditional | provisional | Nullable because ranking eligibility is an unknown rule; must not drive calculation before approval. |
-| `sortOrder` | `integer / Int` | yes | no | editor | internal | public | confirmed | Presentation only. |
-| `isActive` | `boolean / Boolean` | yes | no | editor | internal | internal | confirmed | Deactivate instead of deleting a referenced code. |
-| `isDemo` | `boolean / Boolean` | yes | no | system | internal | internal | confirmed | Separates seed vocabularies from approved dictionaries. |
-| `createdAt` | `timestamptz / DateTime` | yes | no | system | internal | internal | confirmed | Creation timestamp. |
-| `updatedAt` | `timestamptz / DateTime` | yes | no | system | internal | internal | confirmed | Update timestamp. |
+| Field         | PostgreSQL / Prisma type | Required | Unique            | Origin                 | Nature   | Visibility  | Decision                                | Notes                                                                                                |
+| ------------- | ------------------------ | -------- | ----------------- | ---------------------- | -------- | ----------- | --------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `id`          | `uuid / String @db.Uuid` | yes      | PK                | system                 | internal | internal    | confirmed                               | Internal identifier.                                                                                 |
+| `code`        | `text / String`          | yes      | normalized unique | official source/editor | official | public      | confirmed structure, provisional values | Store normalized uppercase code; never infer semantics from the code in application logic.           |
+| `label`       | `text / String`          | yes      | no                | official source/editor | official | public      | confirmed structure, provisional values | Display text; localization strategy remains open.                                                    |
+| `description` | `text / String?`         | no       | no                | official source/editor | official | public      | provisional                             | Optional source-backed explanation.                                                                  |
+| `isRanked`    | `boolean / Boolean?`     | no       | no                | official source/editor | official | conditional | provisional                             | Nullable because ranking eligibility is an unknown rule; must not drive calculation before approval. |
+| `sortOrder`   | `integer / Int`          | yes      | no                | editor                 | internal | public      | confirmed                               | Presentation only.                                                                                   |
+| `isActive`    | `boolean / Boolean`      | yes      | no                | editor                 | internal | internal    | confirmed                               | Deactivate instead of deleting a referenced code.                                                    |
+| `isDemo`      | `boolean / Boolean`      | yes      | no                | system                 | internal | internal    | confirmed                               | Separates seed vocabularies from approved dictionaries.                                              |
+| `createdAt`   | `timestamptz / DateTime` | yes      | no                | system                 | internal | internal    | confirmed                               | Creation timestamp.                                                                                  |
+| `updatedAt`   | `timestamptz / DateTime` | yes      | no                | system                 | internal | internal    | confirmed                               | Update timestamp.                                                                                    |
 
 Recommended indexes and constraints:
 
@@ -135,29 +135,29 @@ Recommended indexes and constraints:
 
 A result represents an athlete-horse performance in one class. All outcome fields are nullable because a valid published result may be expressed as a place, a numeric value, a text value, or only a source-backed status.
 
-| Field | PostgreSQL / Prisma type | Required | Unique | Origin | Nature | Visibility | Decision | Notes |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `id` | `uuid / String @db.Uuid` | yes | PK | system | internal | internal | confirmed | Internal identifier only. |
-| `competitionClassId` | `uuid / String @db.Uuid` | yes | FK | official source/editor | mixed | public | confirmed | Result cannot exist without a class. |
-| `athleteId` | `uuid / String @db.Uuid` | yes | FK | official source/editor | mixed | public | confirmed | Required athlete. |
-| `horseId` | `uuid / String @db.Uuid` | yes | FK | official source/editor | mixed | public | confirmed | Required horse. |
-| `rank` | `integer / Int?` | no | no | official source/import | official | public | confirmed | Positive if present; absent for unranked/status-only results. |
-| `statusId` | `uuid / String? @db.Uuid` | no | FK | official source/import | official | public | confirmed structure, provisional values | Nullable reference to `ResultStatus`; no hard-coded code semantics. |
-| `resultDisplay` | `text / String?` | no | no | official source/import | official | public | confirmed | Source-faithful human-readable outcome. |
-| `penalties` | `decimal / Decimal?` | no | no | official source/import | official | public | provisional | Meaning, scale and applicability depend on discipline/class rules. |
-| `timeSeconds` | `decimal / Decimal?` | no | no | official source/import | official | public | provisional | Numeric seconds for sorting/display where the source supports it. |
-| `points` | `decimal / Decimal?` | no | no | official source/import | official | public | provisional | Competition result points; not ranking points unless an approved rule explicitly maps them. |
-| `bonus` | `decimal / Decimal?` | no | no | official source/import | official | public | provisional | Retained only because required by scope; no calculation semantics are asserted. |
-| `sourceDocumentId` | `uuid / String? @db.Uuid` | no | FK | editor/import | internal | conditional | confirmed | Optional immutable/source document relation. |
-| `sourceReference` | `text / String?` | no | no | editor/import | mixed | conditional | confirmed | URL, page/cell reference or external citation; sanitize before public exposure. |
-| `publicationStatus` | internal enum/reference | yes | no | system/editor | internal | internal | confirmed | Defaults to `DRAFT`; independent of sports status. |
-| `approvedAt` | `timestamptz / DateTime?` | no | no | system/editor | internal | internal | confirmed | Evidence of editorial approval, not Federation sporting certification unless policy says so. |
-| `approvedById` | `uuid / String? @db.Uuid` | no | FK | system | internal | internal | confirmed | Nullable relation to `User`; retain event even if the user is later deactivated. |
-| `publishedAt` | `timestamptz / DateTime?` | no | no | system | internal | public | confirmed | Recommended addition for traceable explicit publication. |
-| `isDemo` | `boolean / Boolean` | yes | no | system | internal | internal | confirmed | Required separation for seeded results. |
-| `archivedAt` | `timestamptz / DateTime?` | no | no | system/editor | internal | internal | confirmed | Soft deletion/archive marker. |
-| `createdAt` | `timestamptz / DateTime` | yes | no | system | internal | internal | confirmed | Creation timestamp. |
-| `updatedAt` | `timestamptz / DateTime` | yes | no | system | internal | internal | confirmed | Update timestamp. |
+| Field                | PostgreSQL / Prisma type  | Required | Unique | Origin                 | Nature   | Visibility  | Decision                                | Notes                                                                                        |
+| -------------------- | ------------------------- | -------- | ------ | ---------------------- | -------- | ----------- | --------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `id`                 | `uuid / String @db.Uuid`  | yes      | PK     | system                 | internal | internal    | confirmed                               | Internal identifier only.                                                                    |
+| `competitionClassId` | `uuid / String @db.Uuid`  | yes      | FK     | official source/editor | mixed    | public      | confirmed                               | Result cannot exist without a class.                                                         |
+| `athleteId`          | `uuid / String @db.Uuid`  | yes      | FK     | official source/editor | mixed    | public      | confirmed                               | Required athlete.                                                                            |
+| `horseId`            | `uuid / String @db.Uuid`  | yes      | FK     | official source/editor | mixed    | public      | confirmed                               | Required horse.                                                                              |
+| `rank`               | `integer / Int?`          | no       | no     | official source/import | official | public      | confirmed                               | Positive if present; absent for unranked/status-only results.                                |
+| `statusId`           | `uuid / String? @db.Uuid` | no       | FK     | official source/import | official | public      | confirmed structure, provisional values | Nullable reference to `ResultStatus`; no hard-coded code semantics.                          |
+| `resultDisplay`      | `text / String?`          | no       | no     | official source/import | official | public      | confirmed                               | Source-faithful human-readable outcome.                                                      |
+| `penalties`          | `decimal / Decimal?`      | no       | no     | official source/import | official | public      | provisional                             | Meaning, scale and applicability depend on discipline/class rules.                           |
+| `timeSeconds`        | `decimal / Decimal?`      | no       | no     | official source/import | official | public      | provisional                             | Numeric seconds for sorting/display where the source supports it.                            |
+| `points`             | `decimal / Decimal?`      | no       | no     | official source/import | official | public      | provisional                             | Competition result points; not ranking points unless an approved rule explicitly maps them.  |
+| `bonus`              | `decimal / Decimal?`      | no       | no     | official source/import | official | public      | provisional                             | Retained only because required by scope; no calculation semantics are asserted.              |
+| `sourceDocumentId`   | `uuid / String? @db.Uuid` | no       | FK     | editor/import          | internal | conditional | confirmed                               | Optional immutable/source document relation.                                                 |
+| `sourceReference`    | `text / String?`          | no       | no     | editor/import          | mixed    | conditional | confirmed                               | URL, page/cell reference or external citation; sanitize before public exposure.              |
+| `publicationStatus`  | internal enum/reference   | yes      | no     | system/editor          | internal | internal    | confirmed                               | Defaults to `DRAFT`; independent of sports status.                                           |
+| `approvedAt`         | `timestamptz / DateTime?` | no       | no     | system/editor          | internal | internal    | confirmed                               | Evidence of editorial approval, not Federation sporting certification unless policy says so. |
+| `approvedById`       | `uuid / String? @db.Uuid` | no       | FK     | system                 | internal | internal    | confirmed                               | Nullable relation to `User`; retain event even if the user is later deactivated.             |
+| `publishedAt`        | `timestamptz / DateTime?` | no       | no     | system                 | internal | public      | confirmed                               | Recommended addition for traceable explicit publication.                                     |
+| `isDemo`             | `boolean / Boolean`       | yes      | no     | system                 | internal | internal    | confirmed                               | Required separation for seeded results.                                                      |
+| `archivedAt`         | `timestamptz / DateTime?` | no       | no     | system/editor          | internal | internal    | confirmed                               | Soft deletion/archive marker.                                                                |
+| `createdAt`          | `timestamptz / DateTime`  | yes      | no     | system                 | internal | internal    | confirmed                               | Creation timestamp.                                                                          |
+| `updatedAt`          | `timestamptz / DateTime`  | yes      | no     | system                 | internal | internal    | confirmed                               | Update timestamp.                                                                            |
 
 Recommended indexes:
 
@@ -183,17 +183,17 @@ The requirement that a result contain at least one outcome (`rank`, `statusId`, 
 
 `ResultMetric` normalizes additional source-backed measurements. It is preferred over unstructured JSON whenever a metric can be assigned a stable source code. JSON is only a reserve layer for raw imports, not the public result contract.
 
-| Field | PostgreSQL / Prisma type | Required | Unique | Origin | Nature | Visibility | Decision | Notes |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `id` | `uuid / String @db.Uuid` | yes | PK | system | internal | internal | confirmed | Internal identifier. |
-| `competitionResultId` | `uuid / String @db.Uuid` | yes | FK | system/import | internal | conditional | confirmed | Required result parent. |
-| `metricCode` | `text / String` | yes | scoped | official source/import | mixed | public | confirmed structure, provisional values | Normalized code; codes require source documentation and must not imply an unapproved formula. |
-| `numericValue` | `decimal / Decimal?` | no | no | official source/import | official | public | confirmed | Machine-readable numeric value. |
-| `textValue` | `text / String?` | no | no | official source/import | official | public | confirmed | Source text when the metric is not safely numeric. |
-| `unit` | `text / String?` | no | no | official source/import | official | public | provisional | Preserve source unit; a canonical unit dictionary is not yet approved. |
-| `sortOrder` | `integer / Int` | yes | no | editor/import | internal | public | confirmed | Non-negative ordering within the result. |
-| `createdAt` | `timestamptz / DateTime` | yes | no | system | internal | internal | confirmed | Creation timestamp. |
-| `updatedAt` | `timestamptz / DateTime` | yes | no | system | internal | internal | confirmed | Update timestamp. |
+| Field                 | PostgreSQL / Prisma type | Required | Unique | Origin                 | Nature   | Visibility  | Decision                                | Notes                                                                                         |
+| --------------------- | ------------------------ | -------- | ------ | ---------------------- | -------- | ----------- | --------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `id`                  | `uuid / String @db.Uuid` | yes      | PK     | system                 | internal | internal    | confirmed                               | Internal identifier.                                                                          |
+| `competitionResultId` | `uuid / String @db.Uuid` | yes      | FK     | system/import          | internal | conditional | confirmed                               | Required result parent.                                                                       |
+| `metricCode`          | `text / String`          | yes      | scoped | official source/import | mixed    | public      | confirmed structure, provisional values | Normalized code; codes require source documentation and must not imply an unapproved formula. |
+| `numericValue`        | `decimal / Decimal?`     | no       | no     | official source/import | official | public      | confirmed                               | Machine-readable numeric value.                                                               |
+| `textValue`           | `text / String?`         | no       | no     | official source/import | official | public      | confirmed                               | Source text when the metric is not safely numeric.                                            |
+| `unit`                | `text / String?`         | no       | no     | official source/import | official | public      | provisional                             | Preserve source unit; a canonical unit dictionary is not yet approved.                        |
+| `sortOrder`           | `integer / Int`          | yes      | no     | editor/import          | internal | public      | confirmed                               | Non-negative ordering within the result.                                                      |
+| `createdAt`           | `timestamptz / DateTime` | yes      | no     | system                 | internal | internal    | confirmed                               | Creation timestamp.                                                                           |
+| `updatedAt`           | `timestamptz / DateTime` | yes      | no     | system                 | internal | internal    | confirmed                               | Update timestamp.                                                                             |
 
 Recommended constraints and indexes:
 
@@ -230,7 +230,7 @@ Public API queries must filter by the approved public publication state, exclude
 - A class with results cannot be physically deleted.
 - An event with classes cannot be physically deleted.
 - A status already referenced by a result is deactivated rather than deleted.
-- `coverMediaId` and `approvedById` may use `SET NULL` only if audit/provenance remains sufficient; `sourceDocumentId` should be restricted for published records.
+- `coverMediaId` may use `SET NULL`. Audited baseline uses `RESTRICT` for `approvedById`, because it is paired with `approvedAt`; `sourceDocumentId` is restrictive.
 - Official and published result data is never physically removed by a normal API operation.
 
 ## Conflicts and decisions for Lead Architect
@@ -255,4 +255,3 @@ Public API queries must filter by the approved public publication state, exclude
 - Which result/source fields are publicly visible, and what is the retention period for source documents?
 - How are team results, ties, ex-aequo ranks and multi-athlete/multi-horse formats represented if they enter scope?
 - Who is the authoritative organizer entity, and is free-text `organizerName` sufficient for v1?
-
