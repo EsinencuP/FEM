@@ -41,13 +41,31 @@ export class ApiExceptionFilter implements ExceptionFilter {
   private normalize(exception: unknown): NormalizedError {
     if (exception instanceof Prisma.PrismaClientKnownRequestError) {
       if (exception.code === 'P2002') {
-        return this.error(HttpStatus.CONFLICT, 'Conflict', 'A resource with these unique values already exists', 'UNIQUE_CONFLICT');
+        return this.error(
+          HttpStatus.CONFLICT,
+          'Conflict',
+          'A resource with these unique values already exists',
+          'UNIQUE_CONFLICT',
+        );
       }
       if (exception.code === 'P2003') {
-        return this.error(HttpStatus.CONFLICT, 'Conflict', 'The operation conflicts with an existing relation', 'RELATION_CONFLICT');
+        return this.error(
+          HttpStatus.CONFLICT,
+          'Conflict',
+          'The operation conflicts with an existing relation',
+          'RELATION_CONFLICT',
+        );
       }
       if (exception.code === 'P2025') {
         return this.error(HttpStatus.NOT_FOUND, 'Not Found', 'Resource not found', 'NOT_FOUND');
+      }
+      if (exception.code === 'P2004') {
+        return this.error(
+          HttpStatus.BAD_REQUEST,
+          'Bad Request',
+          'The request violates a data constraint',
+          'CONSTRAINT_VIOLATION',
+        );
       }
     }
 
@@ -55,14 +73,20 @@ export class ApiExceptionFilter implements ExceptionFilter {
       exception instanceof Prisma.PrismaClientInitializationError ||
       exception instanceof Prisma.PrismaClientRustPanicError
     ) {
-      return this.error(HttpStatus.SERVICE_UNAVAILABLE, 'Service Unavailable', 'Database is unavailable', 'DATABASE_UNAVAILABLE');
+      return this.error(
+        HttpStatus.SERVICE_UNAVAILABLE,
+        'Service Unavailable',
+        'Database is unavailable',
+        'DATABASE_UNAVAILABLE',
+      );
     }
 
     if (exception instanceof HttpException) {
       const statusCode = exception.getStatus();
       const body = exception.getResponse();
-      const objectBody = typeof body === 'object' && body !== null ? (body as ErrorBody) : undefined;
-      const rawMessage = objectBody?.message ?? (typeof body === 'string' ? body : exception.message);
+      const objectBody = typeof body === 'object' ? (body as ErrorBody) : undefined;
+      const rawMessage =
+        objectBody?.message ?? (typeof body === 'string' ? body : exception.message);
       const message = Array.isArray(rawMessage) ? rawMessage.join('; ') : rawMessage;
 
       return {
@@ -74,7 +98,12 @@ export class ApiExceptionFilter implements ExceptionFilter {
       };
     }
 
-    return this.error(HttpStatus.INTERNAL_SERVER_ERROR, 'Internal Server Error', 'An unexpected error occurred', 'INTERNAL_ERROR');
+    return this.error(
+      HttpStatus.INTERNAL_SERVER_ERROR,
+      'Internal Server Error',
+      'An unexpected error occurred',
+      'INTERNAL_ERROR',
+    );
   }
 
   private error(statusCode: number, error: string, message: string, code: string): NormalizedError {
@@ -82,13 +111,14 @@ export class ApiExceptionFilter implements ExceptionFilter {
   }
 
   private statusLabel(statusCode: number): string {
-    return HttpStatus[statusCode]?.replaceAll('_', ' ') ?? 'Error';
+    const label = HttpStatus[statusCode];
+    return typeof label === 'string' ? label.replaceAll('_', ' ') : 'Error';
   }
 
   private defaultCode(statusCode: number): string {
-    if (statusCode === HttpStatus.BAD_REQUEST) return 'VALIDATION_ERROR';
-    if (statusCode === HttpStatus.NOT_FOUND) return 'NOT_FOUND';
-    if (statusCode === HttpStatus.CONFLICT) return 'CONFLICT';
+    if (statusCode === 400) return 'VALIDATION_ERROR';
+    if (statusCode === 404) return 'NOT_FOUND';
+    if (statusCode === 409) return 'CONFLICT';
     return 'HTTP_ERROR';
   }
 }

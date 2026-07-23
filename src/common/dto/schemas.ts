@@ -1,12 +1,13 @@
 import { PublicationStatus, RecordStatus, VerificationStatus } from '@prisma/client';
 import { z } from 'zod';
 
-export const uuidSchema = z.string().uuid();
-export const requiredString = (max: number) => z.string().trim().min(1).max(max);
-export const nullableString = (max: number) => z.string().trim().max(max).nullable();
-export const recordStatusSchema = z.nativeEnum(RecordStatus);
-export const publicationStatusSchema = z.nativeEnum(PublicationStatus);
-export const verificationStatusSchema = z.nativeEnum(VerificationStatus);
+export const uuidSchema = z.uuid();
+export const requiredString = (max: number): z.ZodString => z.string().trim().min(1).max(max);
+export const nullableString = (max: number): z.ZodNullable<z.ZodString> =>
+  z.string().trim().max(max).nullable();
+export const recordStatusSchema = z.enum(RecordStatus);
+export const publicationStatusSchema = z.enum(PublicationStatus);
+export const verificationStatusSchema = z.enum(VerificationStatus);
 
 export const dateStringSchema = z
   .string()
@@ -24,11 +25,17 @@ export const nullableDateStringSchema = dateStringSchema.nullable();
 export const sortOrderSchema = z.enum(['asc', 'desc']).default('asc');
 export const archivedSchema = z.enum(['true', 'false', 'all']).default('false');
 
-export const boundedDecimalSchema = z.coerce.number().finite().min(-1_000_000_000_000).max(1_000_000_000_000);
-export const nonNegativeDecimalSchema = z.coerce.number().finite().min(0).max(1_000_000_000_000);
+export const boundedDecimalSchema = z.coerce
+  .number()
+  .min(-1_000_000_000_000)
+  .max(1_000_000_000_000);
+export const nonNegativeDecimalSchema = z.coerce.number().min(0).max(1_000_000_000_000);
 
 export function ensureDateOrder(
-  value: { startDate?: Date | null; endDate?: Date | null },
+  value: {
+    startDate?: Date | null | undefined;
+    endDate?: Date | null | undefined;
+  },
   context: z.RefinementCtx,
 ): void {
   if (value.startDate && value.endDate && value.endDate < value.startDate) {

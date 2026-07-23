@@ -9,7 +9,7 @@ import {
 
 import { ApiErrorDto } from '../dto/api-error.dto';
 
-export function ApiStandardErrors(): MethodDecorator {
+export function ApiStandardErrors(): ClassDecorator & MethodDecorator {
   return applyDecorators(
     ApiExtraModels(ApiErrorDto),
     ApiBadRequestResponse({ type: ApiErrorDto, description: 'Request validation failed' }),

@@ -7,8 +7,14 @@ import { paginationSchema } from '../../../common/pagination/pagination.dto';
 export class CreateCountryDto {
   static readonly schema = z
     .object({
-      isoAlpha2: z.string().trim().regex(/^[A-Z]{2}$/),
-      isoAlpha3: z.string().trim().regex(/^[A-Z]{3}$/),
+      isoAlpha2: z
+        .string()
+        .trim()
+        .regex(/^[A-Z]{2}$/),
+      isoAlpha3: z
+        .string()
+        .trim()
+        .regex(/^[A-Z]{3}$/),
       name: requiredString(120),
     })
     .strict();

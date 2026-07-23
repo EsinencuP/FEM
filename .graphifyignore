@@ -1,0 +1,24 @@
+# Dependencies, generated output, caches, and local runtime data
+node_modules/
+dist/
+build/
+coverage/
+.next/
+graphify-out/
+tmp/
+temp/
+logs/
+
+# Secrets and local environment configuration
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.pfx
+*.p12
+
+# Database dumps and large generated artifacts
+*.dump
+*.sql.gz
+*.log
