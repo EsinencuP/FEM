@@ -4,6 +4,12 @@ import { PrismaClient } from '@prisma/client';
 import { encryptSecret, hashToken, randomToken } from '../src/common/security/security-crypto';
 
 const prisma = new PrismaClient();
+const ADMIN_PERMISSIONS = [
+  ['ADMIN_READ', 'Read administrative data'],
+  ['ADMIN_WRITE', 'Change administrative data'],
+  ['AUDIT_READ', 'Read audit log'],
+  ['SECURITY_SELF', 'Manage own security'],
+] as const;
 
 function requiredEnvironment(name: string): string {
   const value = process.env[name]?.trim();
@@ -57,6 +63,23 @@ async function bootstrapAdmin(): Promise<void> {
         isSystem: true,
       },
     });
+    for (const [code, name] of ADMIN_PERMISSIONS) {
+      const permission = await transaction.permission.upsert({
+        where: { code },
+        update: { name, isSystem: true, archivedAt: null },
+        create: { code, name, isSystem: true },
+      });
+      await transaction.rolePermission.upsert({
+        where: {
+          roleId_permissionId: {
+            roleId: role.id,
+            permissionId: permission.id,
+          },
+        },
+        update: {},
+        create: { roleId: role.id, permissionId: permission.id },
+      });
+    }
     const user = existing
       ? await transaction.user.update({
           where: { id: existing.id },

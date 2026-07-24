@@ -1,11 +1,15 @@
 # FEM Backend
 
-Автономный backend и первая PostgreSQL Database v1 для информационной платформы Национальной федерации конного спорта Молдовы. Репозиторий содержит NestJS REST foundation, Prisma-модель спортсменов, лошадей, клубов, информационных турниров, результатов и versioned ranking snapshots. Frontend, регистрация на турниры, production-интеграции и официальная формула рейтинга намеренно отсутствуют.
+Автономный backend информационной платформы Национальной федерации конного
+спорта Молдовы. Репозиторий содержит NestJS REST API, PostgreSQL/Prisma-модель,
+защищённую административную поверхность и versioned ranking snapshots без
+официальной формулы. Frontend, регистрация на турниры и production deployment
+намеренно отсутствуют.
 
-> **Authentication is disabled for MVP development. Do not expose this API
-> publicly without an access-control layer.** Текущий `/api/v1` — приватная
-> административно-подобная поверхность: отдельные Public/Admin API, RBAC и
-> публичные allowlist-проекции ещё не реализованы.
+> Административные маршруты `/api/v1/admin/*` защищены server-side session,
+> TOTP/recovery 2FA, permission checks, CSRF и shared rate limiting. Полный
+> published-only Public API и CMS ещё не завершены, поэтому backend пока нельзя
+> открывать в Интернет как готовый публичный релиз.
 
 ## Требования
 
@@ -45,6 +49,8 @@ corepack prepare pnpm@11.9.0 --activate
    `POSTGRES_PASSWORD` и пароль внутри `DATABASE_URL` должны совпадать.
    `CORS_ALLOWED_ORIGINS` — разделённый запятыми список точных frontend origins
    без путей и wildcard. Production не запускается с пустым списком.
+   `AUTH_ENCRYPTION_KEY` должен быть случайным 32-байтовым ключом в hex
+   (64 символа). Не используйте значение из `.env.example`.
 
 3. Запустите PostgreSQL 16:
 
@@ -80,12 +86,39 @@ corepack prepare pnpm@11.9.0 --activate
 
 API будет доступен по адресу `http://localhost:3000/api`, health endpoint — `http://localhost:3000/api/health`, Swagger UI — `http://localhost:3000/api/docs`, OpenAPI JSON — `http://localhost:3000/api/docs-json`.
 
+## Первый администратор
+
+Bootstrap выполняется один раз и не перезаписывает существующие credentials.
+Задайте process-local `INITIAL_ADMIN_*`, установите
+`ALLOW_ADMIN_BOOTSTRAP=true`, затем:
+
+```powershell
+pnpm admin:bootstrap
+Remove-Item Env:ALLOW_ADMIN_BOOTSTRAP
+Remove-Item Env:INITIAL_ADMIN_PASSWORD
+Remove-Item Env:INITIAL_ADMIN_TOTP_SECRET
+```
+
+Сохраните показанные recovery-коды вне репозитория. Сам bootstrap создаёт роль
+`ADMIN`, четыре системных permission (`ADMIN_READ`, `ADMIN_WRITE`,
+`AUDIT_READ`, `SECURITY_SELF`), Argon2id credential, TOTP и immutable audit
+event. Подробный протокол: `docs/delivery/ADMIN_API_SECURITY.md`.
+
 ## Миграции
 
-MVP baseline состоит из двух reviewed migrations:
+Database v1 и Stage 2 security baseline состоят из десяти последовательных
+reviewed migrations. Первые две фиксируют доменную базу; последующие восемь
+добавляют только security/integrity-инфраструктуру:
 
 - `20260722201238_initial_database_v1` — исходная схема Database v1;
 - `20260722204033_mvp_database_stabilization` — безопасная корректировка approval FK и четыре индекса для каталогов/календаря.
+- `20260723234136_admin_security` и `20260723235000_admin_security_constraints`;
+- `20260724093000_admin_session_hardening`;
+- `20260724094500_session_rotation_grace`;
+- `20260724100000_postgres_rate_limit`;
+- `20260724101500_admin_idempotency`;
+- `20260724103000_optimistic_versions`;
+- `20260724104500_admin_permissions`.
 
 Для локального применения:
 
@@ -166,8 +199,8 @@ pnpm build
 официальные configs и сами suites выполняют одинаковую safety-проверку.
 
 Generic POST/PATCH для соревнований и результатов намеренно не принимает
-`publicationStatus`: до появления authentication, permissions и atomic audit
-данные могут оставаться только черновиками.
+`publicationStatus`: публикация будет отдельным permission-protected и
+audit-atomic workflow на этапе Public API/CMS.
 
 GitHub Actions использует ephemeral PostgreSQL 16 с непроизводственными credentials и выполняет migration, seed, constraint и HTTP E2E tests после обычных validate/generate/lint/typecheck/unit gates.
 
@@ -177,11 +210,14 @@ GitHub Actions использует ephemeral PostgreSQL 16 с непроизв�
 src/
   bootstrap/          единая HTTP/Swagger-конфигурация
   common/database/    safety, archive/reference policy и Serializable retry
+  common/security/    token crypto и PostgreSQL-backed rate-limit storage
   common/pipes/       общий Zod validation pipe
   config/             единая Zod-валидация env и типизированный доступ к config
   database/           глобальный DatabaseModule и singleton PrismaService
   health/             health endpoint с реальным SELECT 1
-  modules/            MVP controllers/services/strict DTO
+  modules/auth/       session, 2FA, permissions, CSRF и lifecycle
+  modules/audit/      read-only immutable administrative audit
+  modules/            доменные Admin controllers/services/strict DTO
 prisma/               schema, reviewed migrations и idempotent demo seed
 test/                 HTTP/OpenAPI/concurrency E2E и PostgreSQL constraint tests
 docs/database/        предложения, audit, baseline, delete/index policy и migration safety
@@ -198,8 +234,16 @@ Pino пишет структурированные JSON-логи в production �
 ## Правила безопасности
 
 - `.env` и все его варианты исключены из Git; коммитить можно только `.env.example` без реальных секретов.
-- Не открывайте текущий `/api/v1` в Интернет: write endpoints не имеют
-  authentication, RBAC, 2FA или rate limiting.
+- Не открывайте backend публично до завершения published-only Public API, CMS и
+  production release gates; Admin API уже защищён, но это не заменяет оставшиеся
+  этапы релиза.
+- Admin cookie — `HttpOnly`, `SameSite=Strict`, `Secure` в production. Все
+  state-changing Admin-запросы требуют CSRF; POST также требует
+  `Idempotency-Key`, PATCH — числовой `If-Match`.
+- Archive/restore, DELETE и `If-Match:*` требуют `X-Confirm-Action: true` и
+  `X-Action-Reason`.
+- Production Swagger либо выключается, либо защищается отдельными Basic
+  credentials длиной не менее 16 символов.
 - Не используйте локальные credentials в staging/production.
 - Не логируйте `DATABASE_URL`, пароли, токены, cookie и Authorization headers.
 - Не включайте CORS глобально до согласования точных frontend origins.

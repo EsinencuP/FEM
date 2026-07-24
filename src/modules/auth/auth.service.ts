@@ -40,7 +40,13 @@ const SESSION_ROTATION_GRACE_MS = 5_000;
 interface LoginResult {
   cookieToken: string;
   response: DataResponse<{
-    user: { id: string; email: string; displayName: string; roles: string[] };
+    user: {
+      id: string;
+      email: string;
+      displayName: string;
+      roles: string[];
+      permissions: string[];
+    };
     session: { id: string; expiresAt: Date; idleExpiresAt: Date };
     csrfToken: string;
   }>;
@@ -70,7 +76,16 @@ export class AuthService {
             OR: [{ endDate: null }, { endDate: { gte: now } }],
             role: { code: ADMIN_ROLE, archivedAt: null },
           },
-          include: { role: true },
+          include: {
+            role: {
+              include: {
+                rolePermissions: {
+                  where: { permission: { archivedAt: null } },
+                  include: { permission: true },
+                },
+              },
+            },
+          },
         },
       },
     });
@@ -117,6 +132,13 @@ export class AuthService {
       Math.min(expiresAt.getTime(), now.getTime() + this.config.authSessionIdleMinutes * 60_000),
     );
     const roles = user.userRoles.map(({ role }) => role.code);
+    const permissions = [
+      ...new Set(
+        user.userRoles.flatMap(({ role }) =>
+          role.rolePermissions.map(({ permission }) => permission.code),
+        ),
+      ),
+    ];
 
     const session = await withSerializableTransaction(this.prisma, async (transaction) => {
       if (totpStep !== undefined) {
@@ -176,6 +198,7 @@ export class AuthService {
           email: user.email,
           displayName: user.displayName,
           roles,
+          permissions,
         },
         session: {
           id: session.id,
@@ -208,7 +231,16 @@ export class AuthService {
                 OR: [{ endDate: null }, { endDate: { gte: now } }],
                 role: { archivedAt: null },
               },
-              include: { role: true },
+              include: {
+                role: {
+                  include: {
+                    rolePermissions: {
+                      where: { permission: { archivedAt: null } },
+                      include: { permission: true },
+                    },
+                  },
+                },
+              },
             },
           },
         },
@@ -270,6 +302,13 @@ export class AuthService {
       email: session.user.email,
       displayName: session.user.displayName,
       roles,
+      permissions: [
+        ...new Set(
+          session.user.userRoles.flatMap(({ role }) =>
+            role.rolePermissions.map(({ permission }) => permission.code),
+          ),
+        ),
+      ],
       csrfTokenHash: session.csrfTokenHash,
       sessionTokenHash: session.tokenHash,
       secondFactorMethod:
@@ -292,6 +331,7 @@ export class AuthService {
     email: string;
     displayName: string;
     roles: string[];
+    permissions: string[];
     secondFactorMethod: 'TOTP' | 'RECOVERY';
   }> {
     return dataResponse({
@@ -300,6 +340,7 @@ export class AuthService {
       email: admin.email,
       displayName: admin.displayName,
       roles: admin.roles,
+      permissions: admin.permissions,
       secondFactorMethod: admin.secondFactorMethod,
     });
   }
@@ -358,6 +399,7 @@ export class AuthService {
           email: admin.email,
           displayName: admin.displayName,
           roles: admin.roles,
+          permissions: admin.permissions,
         },
         session: {
           id: session.id,
@@ -562,21 +604,14 @@ export class AuthService {
     dto: ChangePasswordDto,
     metadata: RequestSecurityMetadata,
   ): Promise<void> {
-    const credential = await this.prisma.userCredential.findUniqueOrThrow({
-      where: { userId: admin.userId },
-    });
-    const [passwordValid, otpValid] = await Promise.all([
-      argon2.verify(credential.passwordHash, dto.currentPassword),
-      Promise.resolve(
-        authenticator.verify({
-          secret: decryptSecret(credential.totpSecretEncrypted, this.config.authEncryptionKey),
-          token: dto.otp,
-        }),
-      ),
-    ]);
-    if (!passwordValid || !otpValid) throw this.invalidCredentials();
     const passwordHash = await this.hashPassword(dto.newPassword);
     await withSerializableTransaction(this.prisma, async (transaction) => {
+      await this.claimTotpStep(
+        transaction,
+        admin.userId,
+        dto.otp,
+        dto.currentPassword,
+      );
       await transaction.userCredential.update({
         where: { userId: admin.userId },
         data: { passwordHash, passwordChangedAt: new Date() },
@@ -600,18 +635,11 @@ export class AuthService {
     dto: RotateRecoveryCodesDto,
     metadata: RequestSecurityMetadata,
   ): Promise<DataResponse<{ recoveryCodes: string[] }>> {
-    const credential = await this.prisma.userCredential.findUniqueOrThrow({
-      where: { userId: admin.userId },
-    });
-    const otpValid = authenticator.verify({
-      secret: decryptSecret(credential.totpSecretEncrypted, this.config.authEncryptionKey),
-      token: dto.otp,
-    });
-    if (!otpValid) throw this.invalidCredentials();
     const recoveryCodes = Array.from({ length: RECOVERY_CODE_COUNT }, () =>
       randomToken(12).toUpperCase(),
     );
     await withSerializableTransaction(this.prisma, async (transaction) => {
+      await this.claimTotpStep(transaction, admin.userId, dto.otp);
       await transaction.adminRecoveryCode.deleteMany({ where: { userId: admin.userId } });
       await transaction.adminRecoveryCode.createMany({
         data: recoveryCodes.map((code) => ({
@@ -628,6 +656,45 @@ export class AuthService {
       });
     });
     return dataResponse({ recoveryCodes });
+  }
+
+  private async claimTotpStep(
+    transaction: Prisma.TransactionClient,
+    userId: string,
+    otp: string,
+    currentPassword?: string,
+  ): Promise<void> {
+    const credential = await transaction.userCredential.findUniqueOrThrow({
+      where: { userId },
+      select: {
+        passwordHash: true,
+        totpSecretEncrypted: true,
+      },
+    });
+    const [passwordValid, otpValid] = await Promise.all([
+      currentPassword === undefined
+        ? Promise.resolve(true)
+        : argon2.verify(credential.passwordHash, currentPassword),
+      Promise.resolve(
+        authenticator.verify({
+          secret: decryptSecret(
+            credential.totpSecretEncrypted,
+            this.config.authEncryptionKey,
+          ),
+          token: otp,
+        }),
+      ),
+    ]);
+    if (!passwordValid || !otpValid) throw this.invalidCredentials();
+    const totpStep = BigInt(Math.floor(Date.now() / TOTP_STEP_MS));
+    const consumed = await transaction.userCredential.updateMany({
+      where: {
+        userId,
+        OR: [{ lastTotpStep: null }, { lastTotpStep: { lt: totpStep } }],
+      },
+      data: { lastTotpStep: totpStep },
+    });
+    if (consumed.count !== 1) throw this.invalidCredentials();
   }
 
   private async recordFailedLogin(

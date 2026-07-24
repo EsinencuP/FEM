@@ -2,6 +2,7 @@ import { Controller, Get, Param, ParseUUIDPipe, Query } from '@nestjs/common';
 import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { AdminProtected } from '../../common/decorators/admin-protected.decorator';
+import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
 import { ApiStandardErrors } from '../../common/decorators/api-contract.decorator';
 import { AuditService } from './audit.service';
 import { AuditLogListQueryDto } from './dto/audit.dto';
@@ -9,6 +10,7 @@ import { AuditLogListQueryDto } from './dto/audit.dto';
 @ApiTags('Audit')
 @ApiStandardErrors()
 @AdminProtected()
+@RequirePermissions('AUDIT_READ')
 @Controller('v1/admin/audit-logs')
 export class AuditController {
   constructor(private readonly service: AuditService) {}

@@ -8,10 +8,11 @@ import {
 
 import { ApiErrorDto } from '../dto/api-error.dto';
 import { AdminSessionGuard, CsrfGuard } from '../../modules/auth/admin-session.guard';
+import { PermissionsGuard } from '../../modules/auth/permissions.guard';
 
 export function AdminProtected(): ClassDecorator & MethodDecorator {
   return applyDecorators(
-    UseGuards(AdminSessionGuard, CsrfGuard),
+    UseGuards(AdminSessionGuard, PermissionsGuard, CsrfGuard),
     ApiCookieAuth('adminSession'),
     ApiHeader({
       name: 'X-CSRF-Token',
@@ -40,6 +41,9 @@ export function AdminProtected(): ClassDecorator & MethodDecorator {
       description: 'Required reason (3-500 characters) for critical operations',
     }),
     ApiUnauthorizedResponse({ type: ApiErrorDto, description: 'Administrator session required' }),
-    ApiForbiddenResponse({ type: ApiErrorDto, description: 'ADMIN role or CSRF token required' }),
+    ApiForbiddenResponse({
+      type: ApiErrorDto,
+      description: 'Required permission or CSRF token is missing',
+    }),
   );
 }

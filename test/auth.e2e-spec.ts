@@ -99,7 +99,37 @@ describe('ADMIN authentication and session security (e2e)', () => {
     );
   });
 
+  it('enforces permissions independently from the ADMIN role', async () => {
+    const role = await prisma.role.findUniqueOrThrow({ where: { code: 'ADMIN' } });
+    const permission = await prisma.permission.findUniqueOrThrow({
+      where: { code: 'ADMIN_READ' },
+    });
+    await prisma.rolePermission.deleteMany({
+      where: { roleId: role.id, permissionId: permission.id },
+    });
+    try {
+      const denied = await agent.get('/api/v1/admin/athletes').expect(403);
+      expect(denied.body).toMatchObject({ code: 'PERMISSION_DENIED' });
+    } finally {
+      await prisma.rolePermission.upsert({
+        where: {
+          roleId_permissionId: {
+            roleId: role.id,
+            permissionId: permission.id,
+          },
+        },
+        update: {},
+        create: { roleId: role.id, permissionId: permission.id },
+      });
+    }
+  });
+
   it('rotates one-time recovery codes, audits auth events and revokes logout', async () => {
+    // Simulate the next TOTP window without making the suite wait for 30 seconds.
+    await prisma.userCredential.update({
+      where: { userId: identity.userId },
+      data: { lastTotpStep: null },
+    });
     const otp = authenticator.generate(identity.secret);
     const rotated = await agent
       .post('/api/v1/auth/recovery-codes')

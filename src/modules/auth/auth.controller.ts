@@ -20,6 +20,7 @@ import {
 import type { Request, Response } from 'express';
 
 import { AdminProtected } from '../../common/decorators/admin-protected.decorator';
+import { RequirePermissions } from '../../common/decorators/require-permissions.decorator';
 import { ApiStandardErrors } from '../../common/decorators/api-contract.decorator';
 import { AppConfigService } from '../../config/app-config.service';
 import { AuthService } from './auth.service';
@@ -34,6 +35,7 @@ import {
 
 @ApiTags('Authentication')
 @ApiStandardErrors()
+@RequirePermissions('SECURITY_SELF')
 @Controller('v1/auth')
 export class AuthController {
   constructor(

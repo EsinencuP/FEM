@@ -10,6 +10,12 @@ import { PrismaService } from '../../src/database/prisma.service';
 
 export const TEST_ADMIN_EMAIL = 'integration-admin@example.invalid';
 export const TEST_ADMIN_PASSWORD = 'Integration-Only-Password-2026!';
+const ADMIN_PERMISSIONS = [
+  ['ADMIN_READ', 'Read administrative data'],
+  ['ADMIN_WRITE', 'Change administrative data'],
+  ['AUDIT_READ', 'Read audit log'],
+  ['SECURITY_SELF', 'Manage own security'],
+] as const;
 
 export interface ProvisionedAdmin {
   userId: string;
@@ -87,6 +93,23 @@ export async function provisionAdminTestIdentity(
       isDemo: true,
     },
   });
+  for (const [code, name] of ADMIN_PERMISSIONS) {
+    const permission = await prisma.permission.upsert({
+      where: { code },
+      update: { name, isSystem: true, archivedAt: null },
+      create: { code, name, isSystem: true },
+    });
+    await prisma.rolePermission.upsert({
+      where: {
+        roleId_permissionId: {
+          roleId: role.id,
+          permissionId: permission.id,
+        },
+      },
+      update: {},
+      create: { roleId: role.id, permissionId: permission.id },
+    });
+  }
   const user = await prisma.user.upsert({
     where: { email: TEST_ADMIN_EMAIL },
     update: {

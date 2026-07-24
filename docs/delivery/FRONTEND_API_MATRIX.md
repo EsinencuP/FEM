@@ -38,26 +38,29 @@ The newest release program uses different stage numbers from
 | Response dates | Prisma serializes PostgreSQL `date` values as ISO 8601 UTC timestamps at midnight |
 | Decimal values | JSON strings, preserving database precision |
 | Archive | archive/restore commands; no physical delete for primary resources |
-| Authentication | added in Release Program Stage 2; current general CRUD surface must not be exposed publicly |
+| Authentication | opaque HttpOnly session cookie + TOTP/recovery 2FA |
+| Authorization | persisted role permissions; Admin read/write, audit read and own-security permissions |
+| CSRF | `X-CSRF-Token` on protected state changes |
+| POST replay safety | `Idempotency-Key` required on `/api/v1/admin/*` POST |
+| PATCH concurrency | numeric `If-Match` required; resource body exposes `version` |
 
 ## Current resource surface
 
-The routes below are the existing domain surface. Release Program Stage 2 will
-move or wrap mutations behind `/api/v1/admin`; Release Program Stage 3 will add
-published-only `/api/v1/public/{lang}` projections. Frontend must not treat the
-current unprotected routes as a public production contract.
+The routes below are the protected domain surface. Release Program Stage 3 will
+add published-only `/api/v1/public/{lang}` projections. Admin and Public DTOs
+remain separate contracts.
 
 | Resource | Base route | Operations | List filters | Sort allowlist |
 | --- | --- | --- | --- | --- |
-| Countries | `/countries` | list, get, create, patch, archive, restore | search, archived | name, isoAlpha2, isoAlpha3, createdAt |
-| Disciplines | `/disciplines` | list, get, create, patch, archive, restore | search, status, archived | name, code, createdAt |
-| Clubs | `/clubs` | list, get, create, patch, archive, restore, identifiers | search, countryId, federationId, status, archived | name, createdAt, updatedAt |
-| Owners | `/owners` | list, get, create, patch, archive, restore | search, countryId, status, archived | displayName, createdAt |
-| Athletes | `/athletes` | list, get, create, patch, archive, restore, clubs, horses, results, identifiers | search, countryId, federationId, clubId, status, archived | lastName, displayName, createdAt, updatedAt |
-| Horses | `/horses` | list, get, create, patch, archive, restore, owners, athletes, results, identifiers | search, sex, breed, color, birthYear, countryOfBirthId, status, archived | displayName, passportName, birthYear, createdAt |
-| Competitions | `/competitions` | list, get, by-slug, create, patch, archive, restore, classes, results | search, countryId, disciplineId, status, publicationStatus, dateFrom, dateTo, upcoming, archived | startDate, endDate, title, createdAt |
-| Competition classes | `/competition-classes` | list, get, create, patch, archive, restore, results | competitionEventId, disciplineId, category, level, status, competitionDate, archived | competitionDate, sortOrder, title, createdAt |
-| Results | `/results` | list, get, create, patch, archive, restore, metric create/patch/delete | competitionEventId, competitionClassId, athleteId, horseId, disciplineId, statusId/statusCode, publicationStatus, hasRank, archived | rank, points, timeSeconds, penalties, createdAt |
+| Countries | `/admin/countries` | list, get, create, patch, archive, restore | search, archived | name, isoAlpha2, isoAlpha3, createdAt |
+| Disciplines | `/admin/disciplines` | list, get, create, patch, archive, restore | search, status, archived | name, code, createdAt |
+| Clubs | `/admin/clubs` | list, get, create, patch, archive, restore, identifiers | search, countryId, federationId, status, archived | name, createdAt, updatedAt |
+| Owners | `/admin/owners` | list, get, create, patch, archive, restore | search, countryId, status, archived | displayName, createdAt |
+| Athletes | `/admin/athletes` | list, get, create, patch, archive, restore, clubs, horses, results, identifiers | search, countryId, federationId, clubId, status, archived | lastName, displayName, createdAt, updatedAt |
+| Horses | `/admin/horses` | list, get, create, patch, archive, restore, owners, athletes, results, identifiers | search, sex, breed, color, birthYear, countryOfBirthId, status, archived | displayName, passportName, birthYear, createdAt |
+| Competitions | `/admin/competitions` | list, get, by-slug, create, patch, archive, restore, classes, results | search, countryId, disciplineId, status, publicationStatus, dateFrom, dateTo, upcoming, archived | startDate, endDate, title, createdAt |
+| Competition classes | `/admin/competition-classes` | list, get, create, patch, archive, restore, results | competitionEventId, disciplineId, category, level, status, competitionDate, archived | competitionDate, sortOrder, title, createdAt |
+| Results | `/admin/results` | list, get, create, patch, archive, restore, metric create/patch/delete | competitionEventId, competitionClassId, athleteId, horseId, disciplineId, statusId/statusCode, publicationStatus, hasRank, archived | rank, points, timeSeconds, penalties, createdAt |
 
 All paths in this table are relative to `/api/v1`.
 
@@ -97,6 +100,13 @@ strict, separate allowlist in Release Program Stage 3.
    service.
 7. Frontend-generated types must come from the committed OpenAPI snapshot, not
    handwritten copies.
+8. Frontend stores neither the session token nor recovery codes in browser
+   storage. The cookie is managed by the browser; the CSRF token is kept only
+   for the current authenticated runtime.
+9. PATCH reads the latest `version` and sends it in `If-Match`; a 409 requires
+   refresh and user-visible conflict handling, not a blind retry.
+10. POST retries reuse the same `Idempotency-Key` only for the exact same
+    payload.
 
 ## Stage 1 evidence
 
@@ -109,7 +119,6 @@ strict, separate allowlist in Release Program Stage 3.
 
 ## Deferred to required later stages
 
-- Admin security schemes and 401/403/429: Release Program Stage 2;
 - public locale, allowlists, published-only routes and cache headers: Stage 3;
 - content/news/pages/navigation/media/SEO contracts: Stage 4;
 - full frontend contract consumer test: external frontend pipeline;

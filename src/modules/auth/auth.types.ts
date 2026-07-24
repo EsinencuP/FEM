@@ -6,6 +6,7 @@ export interface AuthenticatedAdmin {
   email: string;
   displayName: string;
   roles: string[];
+  permissions: string[];
   csrfTokenHash: string;
   sessionTokenHash: string;
   secondFactorMethod: 'TOTP' | 'RECOVERY';
