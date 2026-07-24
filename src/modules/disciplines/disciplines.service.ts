@@ -9,6 +9,12 @@ import {
   type ListResponse,
 } from '../../common/dto/api-response';
 import { archivedAtFilter, paginationArgs } from '../../common/pagination/pagination.dto';
+import {
+  assertProfileMutable,
+  assertProfilePublishable,
+  assertProfileWithdrawable,
+  profilePublishData,
+} from '../../common/publication/profile-publication';
 import { PrismaService } from '../../database/prisma.service';
 import type {
   CreateDisciplineDto,
@@ -55,6 +61,7 @@ export class DisciplinesService {
     return withSerializableTransaction(this.prisma, async (transaction) => {
       const current = await transaction.discipline.findUniqueOrThrow({ where: { id } });
       assertActiveRecord(current, 'discipline');
+      assertProfileMutable(current, 'discipline');
       return dataResponse(await transaction.discipline.update({ where: { id }, data: dto }));
     });
   }
@@ -71,5 +78,33 @@ export class DisciplinesService {
         await transaction.discipline.update({ where: { id }, data: { archivedAt: null } }),
       ),
     );
+  }
+
+  async publish(id: string): Promise<DataResponse<Discipline>> {
+    return withSerializableTransaction(this.prisma, async (transaction) => {
+      const current = await transaction.discipline.findUniqueOrThrow({ where: { id } });
+      assertActiveRecord(current, 'discipline');
+      assertProfilePublishable(current, 'discipline');
+      return dataResponse(
+        await transaction.discipline.update({
+          where: { id },
+          data: profilePublishData(current),
+        }),
+      );
+    });
+  }
+
+  async withdraw(id: string): Promise<DataResponse<Discipline>> {
+    return withSerializableTransaction(this.prisma, async (transaction) => {
+      const current = await transaction.discipline.findUniqueOrThrow({ where: { id } });
+      assertActiveRecord(current, 'discipline');
+      assertProfileWithdrawable(current, 'discipline');
+      return dataResponse(
+        await transaction.discipline.update({
+          where: { id },
+          data: { publicationStatus: 'WITHDRAWN' },
+        }),
+      );
+    });
   }
 }

@@ -1,9 +1,4 @@
-import {
-  BadRequestException,
-  CanActivate,
-  ExecutionContext,
-  Injectable,
-} from '@nestjs/common';
+import { BadRequestException, CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
 
 import { AppConfigService } from '../../config/app-config.service';
 import { RequestAuditContext } from '../../common/context/request-audit-context';
@@ -51,8 +46,7 @@ export class AdminSessionGuard implements CanActivate {
     const reasonHeader = request.headers['x-action-reason'];
     const idempotencyHeader = request.headers['idempotency-key'];
     const idempotencyKey =
-      typeof idempotencyHeader === 'string' &&
-      /^[A-Za-z0-9._:-]{8,128}$/.test(idempotencyHeader)
+      typeof idempotencyHeader === 'string' && /^[A-Za-z0-9._:-]{8,128}$/.test(idempotencyHeader)
         ? idempotencyHeader
         : undefined;
     const requestHash = idempotencyKey
@@ -99,8 +93,7 @@ export class CsrfGuard implements CanActivate {
         !RequestAuditContext.current()?.requestHash)
     ) {
       throw new BadRequestException({
-        message:
-          'Administrative POST requests require an Idempotency-Key (8-128 safe characters)',
+        message: 'Administrative POST requests require an Idempotency-Key (8-128 safe characters)',
         code: 'IDEMPOTENCY_KEY_REQUIRED',
       });
     }
@@ -116,7 +109,7 @@ export class CsrfGuard implements CanActivate {
     }
     const isCritical =
       request.method === 'DELETE' ||
-      /\/(?:archive|restore)(?:\?|$)/.test(request.originalUrl) ||
+      /\/(?:archive|restore|publish|withdraw)(?:\?|$)/.test(request.originalUrl) ||
       RequestAuditContext.current()?.expectedVersion === '*';
     if (isCritical) {
       const confirmation = request.headers['x-confirm-action'];

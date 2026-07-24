@@ -64,6 +64,11 @@ describe('production Swagger protection (e2e)', () => {
       .set('Authorization', `Basic ${credentials}`)
       .expect(200);
     const body: unknown = response.body;
-    expect(z.object({ openapi: z.literal('3.0.0') }).loose().parse(body)).toBeDefined();
+    expect(
+      z
+        .object({ openapi: z.literal('3.0.0') })
+        .loose()
+        .parse(body),
+    ).toBeDefined();
   });
 });

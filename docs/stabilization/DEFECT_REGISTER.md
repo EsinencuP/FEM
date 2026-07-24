@@ -9,7 +9,7 @@ Status values: `OPEN`, `IN_FIX`, `FIXED`, `FIXED_WITH_RESIDUAL_RISK`,
 - Category: testing, infrastructure, security
 - Module: `test/database-constraints.db-spec.ts`
 - Status: FIXED
-- Recheck count: 3
+- Recheck count: 9
 - Evidence: lines 44–52 allow only `equestrian_federation_test` and
   `ci_database`; all 16 integration tests fail on the dedicated local database
   `fem_audit_20260723_stabilization`.
@@ -63,7 +63,7 @@ Status values: `OPEN`, `IN_FIX`, `FIXED`, `FIXED_WITH_RESIDUAL_RISK`,
 - Category: API contract, testing, documentation
 - Module: repository tooling
 - Status: FIXED
-- Recheck count: 3
+- Recheck count: 11
 - Evidence: a secret-free local collection now covers health, every existing
   resource list and a negative pagination case; Public API requests cannot be
   added because that surface does not exist.
@@ -653,3 +653,278 @@ Status values: `OPEN`, `IN_FIX`, `FIXED`, `FIXED_WITH_RESIDUAL_RISK`,
 - Acceptance rationale: this is a test-maintainability/flakiness risk, not a
   production data risk; three clean serial gates are required. Running arbitrary
   mid-file DB tests by name is not currently supported and is documented.
+
+## STAB-024 — Administrative domain surface was anonymous
+
+- Severity: CRITICAL
+- Category: security, API contract
+- Module: all domain controllers
+- Status: FIXED
+- Recheck count: 3
+- Evidence: the prior stabilization inventory exposed 53 mutation operations
+  without an authentication scheme.
+- Root cause: the private MVP deliberately deferred the security boundary.
+- Options: bolt guards onto mixed routes, or establish a distinct Admin
+  namespace with a central security policy.
+- Selected solution: move all domain controllers to `/api/v1/admin/*`; protect
+  them with opaque session, permission and CSRF guards. The future Public API is
+  a separate allowlist projection.
+- Regression: anonymous Admin list/write returns 401; OpenAPI declares the
+  cookie scheme; no legacy domain route is registered.
+
+## STAB-025 — Domain changes and audit evidence could diverge
+
+- Severity: CRITICAL
+- Category: audit, transaction, security
+- Module: serializable Admin transaction boundary
+- Status: FIXED
+- Recheck count: 3
+- Evidence: the initial AuditLog model had no shared mutation writer and actor
+  attribution was nullable for all real changes.
+- Root cause: audit was modeled before an authenticated request context existed.
+- Selected solution: AsyncLocalStorage request context plus same-transaction
+  redacted old/new audit writes; append-only database triggers and restrictive
+  actor/session FKs.
+- Regression: forced audit insert failure rolls back the domain insert; update,
+  delete and truncate of AuditLog are rejected by PostgreSQL.
+
+## STAB-026 — Authentication throttle was process-local
+
+- Severity: HIGH
+- Category: security, reliability
+- Module: throttler storage
+- Status: FIXED
+- Recheck count: 2
+- Evidence: an in-memory quota can be bypassed across instances and resets on
+  every restart.
+- Selected solution: atomic PostgreSQL-backed named buckets with validated
+  per-surface limits.
+- Regression: two independent Nest application instances share the login quota;
+  spoofed forwarding headers do not split it with zero trusted proxies.
+
+## STAB-027 — Session and second-factor lifecycle was incomplete
+
+- Severity: HIGH
+- Category: security
+- Module: auth
+- Status: FIXED
+- Recheck count: 3
+- Evidence: the prior baseline had no credential, session, refresh, logout,
+  lockout, recovery or re-enrollment implementation.
+- Selected solution: Argon2id, encrypted TOTP, hashed recovery codes, opaque
+  session rotation, idle/absolute expiry, token-reuse revocation, lockout and a
+  two-step recovery-only TOTP replacement.
+- Regression: auth, lifecycle, lockout and hardening E2E suites.
+
+## STAB-028 — Retried Admin writes could duplicate or overwrite changes
+
+- Severity: HIGH
+- Category: concurrency, API contract
+- Module: all Admin writes
+- Status: FIXED
+- Recheck count: 2
+- Evidence: repeated POST had no request identity and generic PATCH was
+  last-write-wins.
+- Selected solution: transaction-bound idempotency records for POST and
+  per-resource optimistic versions for PATCH.
+- Regression: concurrent duplicate POST has one write/audit; conflicting
+  payload returns 409; same-version concurrent PATCH has one winner.
+
+## STAB-029 — ADMIN role implied unrestricted authority
+
+- Severity: HIGH
+- Category: authorization
+- Module: auth and audit
+- Status: FIXED
+- Recheck count: 2
+- Evidence: role membership alone granted every protected operation.
+- Root cause: no persisted permission vocabulary or role mapping existed.
+- Selected solution: additive `Permission` and `RolePermission` models plus a
+  guard for `ADMIN_READ`, `ADMIN_WRITE`, `AUDIT_READ` and `SECURITY_SELF`.
+- Regression: removing `ADMIN_READ` while retaining the active `ADMIN` role
+  returns 403 `PERMISSION_DENIED`.
+
+## STAB-030 — Sensitive TOTP actions could race outside the transaction
+
+- Severity: HIGH
+- Category: security, concurrency
+- Module: password and recovery-code lifecycle
+- Status: FIXED
+- Recheck count: 2
+- Evidence: password/TOTP verification occurred before the serializable write,
+  allowing parallel reuse of the same timestep and stale current password.
+- Selected solution: verify current credential and atomically claim
+  `lastTotpStep` inside the same transaction as the sensitive change.
+- Regression: two concurrent recovery-code rotations with one TOTP timestep
+  produce one 200 and one 401; password change revokes other sessions.
+
+## STAB-031 — Recovery factor inherited full Admin permissions
+
+- Severity: CRITICAL
+- Category: authorization, security
+- Module: permissions guard
+- Status: FIXED
+- Recheck count: 2
+- Evidence: `secondFactorMethod=RECOVERY` was returned to the principal but not
+  considered by authorization, so a recovery code created an otherwise normal
+  Admin session.
+- Root cause: factor provenance was modeled for re-enrollment but omitted from
+  the permission decision.
+- Options: treat recovery code as a complete equal factor, or create a
+  constrained recovery session that can only repair TOTP and log out.
+- Selected solution: constrained recovery session. Only `me`, logout and TOTP
+  re-enrollment start/confirm are allowed; domain Admin access returns 403 until
+  confirmation upgrades the factor or a separate TOTP login succeeds.
+- Regression: a real recovery-code login receives
+  `RECOVERY_SESSION_RESTRICTED` on Admin list and a later TOTP login regains
+  normal permission checks.
+
+## STAB-032 — Active rate-limit block was reset with the original window
+
+- Severity: HIGH
+- Category: security, reliability
+- Module: PostgreSQL throttler storage
+- Status: FIXED
+- Recheck count: 2
+- Evidence: the reset branch evaluated expired `expiresAt` before honoring a
+  still-future `blockedUntil`.
+- Root cause: counting-window expiry and penalty expiry were treated as one
+  lifecycle.
+- Options: extend the counting window to the block deadline, or give an active
+  block precedence over window reset.
+- Selected solution: active `blockedUntil` is authoritative; reset occurs only
+  after the block expires.
+- Regression: a valid expired window with a future block remains 429; after the
+  block expires the same bucket resets to one hit.
+
+## STAB-033 — Wildcard optimistic-version override inherited normal write authority
+
+- Severity: HIGH
+- Category: authorization, concurrency
+- Module: Admin PATCH guard
+- Status: FIXED
+- Recheck count: 2
+- Evidence: any `ADMIN_WRITE` principal could submit `If-Match: *`.
+- Root cause: the emergency override was parsed as a version value but not
+  modeled as separate authority.
+- Options: remove wildcard support, or protect it with a dedicated permission
+  and critical-action evidence.
+- Selected solution: `VERSION_OVERRIDE` plus confirmation and reason. Numeric
+  `If-Match` remains the ordinary frontend contract.
+- Regression: without permission returns 403; without confirmation returns 400;
+  authorized override increments once and writes actor/session/reason and exact
+  before/after versions to audit.
+
+## STAB-034 — Runtime database role could control audit and migration evidence
+
+- Severity: CRITICAL
+- Category: database, security, migration
+- Module: production database credentials
+- Status: FIXED
+- Recheck count: 3
+- Evidence: the first capability draft granted DML on every public table,
+  including `_prisma_migrations`, reused a cluster-global role and committed
+  that unsafe state before a later hardening migration.
+- Root cause: privilege separation stopped at AuditLog trigger protection and
+  did not define a complete runtime/deployment matrix.
+- Options: retain a global role with a deny-list, or use a database-scoped
+  capability with an explicit allowlist and fail-closed startup verification.
+- Selected solution: the first unpublished role migration now directly creates
+  the deterministic database-scoped NOLOGIN capability with explicit table
+  privileges, no default grants and no migration-history access. Production
+  startup verifies exact membership, both role attribute sets, ownership,
+  default ACL, membership options and the complete effective table/column ACL
+  matrix. It also rejects grant options, unexpected schemas, views/materialized
+  views/foreign relations, sequences, functions, non-baseline PUBLIC system
+  ACL, direct system grants and implicit ownership across PostgreSQL object
+  classes.
+- Regression: a real member performs required runtime DML but cannot read or
+  mutate migration history, permission configuration, audit history or
+  triggers; owner/dangerous/extra-membership credentials fail production
+  startup; malicious pre-existing LOGIN, ownership or default-ACL capabilities
+  abort before any grant. Negative startup probes cover missing required ACL,
+  table and column privilege escalation, grant options, both membership
+  directions/options, login/capability ownership/default ACL, an owner-backed
+  migration-history view, a non-public user schema, PUBLIC application/system
+  grants and large-object ownership.
+  Cluster-boundary regressions also cover PUBLIC parameter privilege,
+  adjacent-database CONNECT and a role-level `session_replication_role=replica`
+  default on a fresh connection.
+
+## STAB-035 — Expired rate-limit buckets had no retention path
+
+- Severity: HIGH
+- Category: security, performance, reliability
+- Module: PostgreSQL throttler storage
+- Status: FIXED
+- Recheck count: 2
+- Evidence: source-IP and route cardinality could create permanent expired rows.
+- Root cause: shared persistence was added without lifecycle cleanup.
+- Options: external limiter storage with TTL, a background cleanup job, or
+  bounded opportunistic cleanup in the existing store.
+- Selected solution: every 128 operations each instance attempts a separate
+  500-row `SKIP LOCKED` batch. Cleanup failure is logged and isolated from the
+  request. A dedicated limiter remains an evidence-based scale option.
+- Regression: two instances reclaim 750 stale fixtures in bounded batches while
+  active blocked rows survive.
+
+## STAB-036 — A future Admin PATCH route could bypass version claiming
+
+- Severity: HIGH
+- Category: concurrency, maintainability, API contract
+- Module: serializable Admin transaction boundary
+- Status: FIXED
+- Recheck count: 2
+- Evidence: an unrecognized Admin entity silently returned from the version
+  switch.
+- Root cause: the mapping default favored compatibility over fail-closed write
+  integrity.
+- Selected solution: unknown Admin PATCH entities throw before mutation; an
+  OpenAPI inventory test requires every registered Admin PATCH route to match a
+  supported versioned resource shape.
+- Regression: current route inventory is complete and wildcard/numeric version
+  tests remain green.
+
+## Independent-review hypothesis reconciliation
+
+Three previously reported HIGH hypotheses were rejected after re-reading the
+current source and executing regressions:
+
+- auth audit resolves `sessionId` from the event or request audit context;
+- password and recovery-code rotation claim the TOTP timestep transactionally;
+- generic Admin audit stores an exact redacted old snapshot and the actual
+  returned after-state. These are covered by auth, concurrency and audit tests.
+
+## STAB-037 — Expired idempotency response payloads were retained indefinitely
+
+- Severity: HIGH
+- Category: security, performance, privacy
+- Module: Admin POST idempotency
+- Status: FIXED
+- Recheck count: 2
+- Evidence: a record was removed only when the same derived key was reused;
+  unrelated expired response bodies had no retention path.
+- Root cause: logical TTL was checked during replay but not enforced as storage
+  lifecycle.
+- Selected solution: every 16 idempotent operations attempts a separate,
+  index-backed 250-row `SKIP LOCKED` delete. Failure is logged and does not fail
+  the business request.
+- Regression: unrelated expired payload is reclaimed while an active record and
+  new requests remain available.
+
+## STAB-038 — Restricted production smoke could execute stale build output
+
+- Severity: HIGH
+- Category: testing, CI, production readiness
+- Module: runtime-role smoke
+- Status: FIXED
+- Recheck count: 2
+- Evidence: the script launched `dist` without building and CI did not execute
+  it.
+- Selected solution: `pnpm test:runtime-role` builds first, allocates an
+  ephemeral port, redacts bounded child diagnostics and is a CI step after
+  migration/E2E/OpenAPI gates.
+- Regression: clean gate executes current build under a real restricted login
+  and performs allowed domain SELECT/INSERT/UPDATE, proves destructive
+  DELETE/TRUNCATE/ALTER and migration-history reads fail, then observes health
+  200, anonymous Admin 401 and production Swagger 404.

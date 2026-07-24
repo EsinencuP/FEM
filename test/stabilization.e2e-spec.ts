@@ -8,9 +8,7 @@ import { AppModule } from '../src/app.module';
 import { configureHttpApplication } from '../src/bootstrap/configure-http-application';
 import { AppConfigService } from '../src/config/app-config.service';
 import { assertSafeTestDatabaseEnvironment } from '../src/common/database/database-safety';
-import {
-  createAdminTestClient,
-} from './setup/admin-test-client';
+import { createAdminTestClient } from './setup/admin-test-client';
 import type { AdminTestClient } from './setup/admin-test-client';
 
 interface DemoReferences {
@@ -349,9 +347,7 @@ describe('Stabilization invariants (e2e)', () => {
       .patch(`/api/v1/admin/results/${resultId}/metrics/${metricId}`)
       .send({ numericValue: 2 })
       .expect(409);
-    await adminRequest
-      .delete(`/api/v1/admin/results/${resultId}/metrics/${metricId}`)
-      .expect(409);
+    await adminRequest.delete(`/api/v1/admin/results/${resultId}/metrics/${metricId}`).expect(409);
     await expect(
       prisma.resultMetric.findUniqueOrThrow({ where: { id: metricId } }),
     ).resolves.toBeDefined();

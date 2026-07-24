@@ -36,9 +36,9 @@ describe('ADMIN login lockout (e2e)', () => {
       Array.from({ length: config.authMaxFailedAttempts + 2 }, () =>
         auth.login(
           {
-          email: identity.email,
-          password: 'Wrong-Password-For-Lockout!',
-          otp: '000000',
+            email: identity.email,
+            password: 'Wrong-Password-For-Lockout!',
+            otp: '000000',
           },
           { requestId: randomUUID(), ipAddress: '127.0.0.1', userAgent: 'lockout-test' },
         ),

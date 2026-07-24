@@ -20,6 +20,7 @@ import {
 import { assertSourceDocumentReference } from '../../common/database/reference-policy';
 import { withSerializableTransaction } from '../../common/database/serializable-transaction';
 import { archivedAtFilter, paginationArgs } from '../../common/pagination/pagination.dto';
+import { publicResultDependenciesWhere } from '../../common/publication/public-visibility';
 import { PrismaService } from '../../database/prisma.service';
 import type {
   CompetitionResultListQueryDto,
@@ -169,6 +170,12 @@ export class CompetitionResultsService {
           code: 'ARCHIVED_RESOURCE',
         });
       }
+      if (current.publicationStatus === 'PUBLISHED') {
+        throw new ConflictException({
+          message: 'Withdraw a published result before changing it',
+          code: 'PUBLISHED_RESULT_IMMUTABLE',
+        });
+      }
       const isDemo = await this.assertReferences(
         transaction,
         dto.competitionClassId ?? current.competitionClassId,
@@ -247,6 +254,92 @@ export class CompetitionResultsService {
         await transaction.competitionResult.update({
           where: { id },
           data: { archivedAt: null, isDemo },
+        }),
+      );
+    });
+  }
+
+  async publish(id: string): Promise<DataResponse<CompetitionResult>> {
+    return withSerializableTransaction(this.prisma, async (transaction) => {
+      const current = await transaction.competitionResult.findUniqueOrThrow({
+        where: { id },
+        include: { _count: { select: { metrics: true } } },
+      });
+      this.assertNotArchived(current.archivedAt, 'result');
+      if (current.isDemo) {
+        throw new ConflictException({
+          message: 'Demo competition results cannot be published',
+          code: 'DEMO_PUBLICATION_FORBIDDEN',
+        });
+      }
+      if (current.publicationStatus === 'PUBLISHED') {
+        throw new ConflictException({
+          message: 'Competition result is already published',
+          code: 'ALREADY_PUBLISHED',
+        });
+      }
+      const publicationCandidate = await transaction.competitionResult.findFirst({
+        where: {
+          AND: [{ id }, publicResultDependenciesWhere(new Date())],
+        },
+        select: { id: true },
+      });
+      const mismatchedMetric = await transaction.resultMetric.findFirst({
+        where: {
+          competitionResultId: id,
+          isDemo: { not: current.isDemo },
+        },
+        select: { id: true },
+      });
+      if (!publicationCandidate || mismatchedMetric) {
+        throw new ConflictException({
+          message: 'Result publication dependencies are not publicly visible',
+          code: 'PUBLICATION_DEPENDENCY_INVALID',
+        });
+      }
+      await this.assertReferences(
+        transaction,
+        current.competitionClassId,
+        current.athleteId,
+        current.horseId,
+        current.statusId,
+      );
+      this.assertOutcome({
+        rank: current.rank,
+        statusId: current.statusId,
+        resultDisplay: current.resultDisplay,
+        penalties: current.penalties,
+        timeSeconds: current.timeSeconds,
+        points: current.points,
+        bonus: current.bonus,
+        metricCount: current._count.metrics,
+      });
+      return dataResponse(
+        await transaction.competitionResult.update({
+          where: { id },
+          data: {
+            publicationStatus: 'PUBLISHED',
+            publishedAt: current.publishedAt ?? new Date(),
+          },
+        }),
+      );
+    });
+  }
+
+  async withdraw(id: string): Promise<DataResponse<CompetitionResult>> {
+    return withSerializableTransaction(this.prisma, async (transaction) => {
+      const current = await transaction.competitionResult.findUniqueOrThrow({ where: { id } });
+      this.assertNotArchived(current.archivedAt, 'result');
+      if (current.publicationStatus !== 'PUBLISHED') {
+        throw new ConflictException({
+          message: 'Only a published result can be withdrawn',
+          code: 'PUBLICATION_STATE_INVALID',
+        });
+      }
+      return dataResponse(
+        await transaction.competitionResult.update({
+          where: { id },
+          data: { publicationStatus: 'WITHDRAWN', publishedAt: null },
         }),
       );
     });
@@ -426,7 +519,7 @@ export class CompetitionResultsService {
     approvedAt: Date | null;
   }): void {
     if (
-      result.publicationStatus !== 'DRAFT' ||
+      !['DRAFT', 'WITHDRAWN'].includes(result.publicationStatus) ||
       result.publishedAt !== null ||
       result.approvedAt !== null
     ) {

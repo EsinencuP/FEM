@@ -311,8 +311,7 @@ export class AuthService {
       ],
       csrfTokenHash: session.csrfTokenHash,
       sessionTokenHash: session.tokenHash,
-      secondFactorMethod:
-        session.secondFactorMethod === 'RECOVERY' ? 'RECOVERY' : 'TOTP',
+      secondFactorMethod: session.secondFactorMethod === 'RECOVERY' ? 'RECOVERY' : 'TOTP',
     };
   }
 
@@ -475,10 +474,7 @@ export class AuthService {
         code: 'TOTP_REENROLLMENT_EXPIRED',
       });
     }
-    const secret = decryptSecret(
-      session.pendingTotpSecretEncrypted,
-      this.config.authEncryptionKey,
-    );
+    const secret = decryptSecret(session.pendingTotpSecretEncrypted, this.config.authEncryptionKey);
     if (!authenticator.verify({ secret, token: dto.otp })) throw this.invalidCredentials();
     const totpStep = BigInt(Math.floor(now.getTime() / TOTP_STEP_MS));
     const recoveryCodes = Array.from({ length: RECOVERY_CODE_COUNT }, () =>
@@ -554,10 +550,7 @@ export class AuthService {
     );
   }
 
-  async logout(
-    admin: AuthenticatedAdmin,
-    metadata: RequestSecurityMetadata,
-  ): Promise<void> {
+  async logout(admin: AuthenticatedAdmin, metadata: RequestSecurityMetadata): Promise<void> {
     await withSerializableTransaction(this.prisma, async (transaction) => {
       await transaction.adminSession.update({
         where: { id: admin.sessionId },
@@ -606,12 +599,7 @@ export class AuthService {
   ): Promise<void> {
     const passwordHash = await this.hashPassword(dto.newPassword);
     await withSerializableTransaction(this.prisma, async (transaction) => {
-      await this.claimTotpStep(
-        transaction,
-        admin.userId,
-        dto.otp,
-        dto.currentPassword,
-      );
+      await this.claimTotpStep(transaction, admin.userId, dto.otp, dto.currentPassword);
       await transaction.userCredential.update({
         where: { userId: admin.userId },
         data: { passwordHash, passwordChangedAt: new Date() },
@@ -677,10 +665,7 @@ export class AuthService {
         : argon2.verify(credential.passwordHash, currentPassword),
       Promise.resolve(
         authenticator.verify({
-          secret: decryptSecret(
-            credential.totpSecretEncrypted,
-            this.config.authEncryptionKey,
-          ),
+          secret: decryptSecret(credential.totpSecretEncrypted, this.config.authEncryptionKey),
           token: otp,
         }),
       ),

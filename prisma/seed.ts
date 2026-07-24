@@ -7,6 +7,7 @@ import {
   RankingCalculationStatus,
   RankingSubjectType,
   RecordStatus,
+  VerificationStatus,
   type Prisma,
 } from '@prisma/client';
 
@@ -16,6 +17,20 @@ import { withSerializableTransaction } from '../src/common/database/serializable
 const prisma = new PrismaClient();
 
 const DEMO_SEED_VERSION = 'database-v1';
+const DEMO_CLUB_COUNT = 4;
+const DEMO_ATHLETE_COUNT = 16;
+const DEMO_HORSE_COUNT = 16;
+const DEMO_CLASS_COUNT_PER_EVENT = 4;
+const DEMO_RESULT_COUNT = 60;
+
+const DEMO_CATEGORIES = [
+  'Открытый класс (демо)',
+  'Юниоры (демо)',
+  'Любители (демо)',
+  'Молодые лошади (демо)',
+] as const;
+
+const DEMO_LEVELS = ['Базовый (демо)', 'Средний (демо)', 'Открытый (демо)'] as const;
 
 export function demoId(key: string): string {
   const hex = createHash('sha256').update(`fem:${DEMO_SEED_VERSION}:${key}`).digest('hex');
@@ -69,35 +84,63 @@ async function assertNoNaturalKeyCollisions(
     disciplineInput.map(([code]) => [code, demoId(`discipline:${code}`)]),
   );
   const expectedStatusIds = new Map(
-    ['DEMO_FINISHED', 'DEMO_STATUS_ONLY'].map((code) => [code, demoId(`result-status:${code}`)]),
+    ['DEMO_FINISHED', 'DEMO_STATUS_ONLY', 'DEMO_DISQUALIFIED'].map((code) => [
+      code,
+      demoId(`result-status:${code}`),
+    ]),
   );
   const expectedEventIds = new Map(
     [1, 2, 3].map((index) => [`demo-event-${index}`, demoId(`event:${index}`)]),
   );
-  const expectedRankingDefinitionId = demoId('ranking-definition');
-
-  const [countries, disciplines, statuses, events, rankingDefinition] = await Promise.all([
-    client.country.findMany({
-      where: { isoAlpha2: { in: [...expectedCountryIds.keys()] } },
-      select: { id: true, isoAlpha2: true, isDemo: true },
+  const expectedExternalIdentifierIds = new Map<string, string>([
+    ...Array.from({ length: DEMO_ATHLETE_COUNT }, (_, offset) => {
+      const index = offset + 1;
+      return [
+        `ATH-${index.toString().padStart(3, '0')}`,
+        demoId(`external-id:athlete:${index}`),
+      ] as const;
     }),
-    client.discipline.findMany({
-      where: { code: { in: [...expectedDisciplineIds.keys()] } },
-      select: { id: true, code: true, isDemo: true },
-    }),
-    client.resultStatus.findMany({
-      where: { code: { in: [...expectedStatusIds.keys()] } },
-      select: { id: true, code: true, isDemo: true },
-    }),
-    client.competitionEvent.findMany({
-      where: { slug: { in: [...expectedEventIds.keys()] } },
-      select: { id: true, slug: true, isDemo: true },
-    }),
-    client.rankingDefinition.findUnique({
-      where: { code: 'DEMO_ATHLETE_RANKING' },
-      select: { id: true, isDemo: true },
+    ...Array.from({ length: DEMO_HORSE_COUNT }, (_, offset) => {
+      const index = offset + 1;
+      return [
+        `HRS-${index.toString().padStart(3, '0')}`,
+        demoId(`external-id:horse:${index}`),
+      ] as const;
     }),
   ]);
+  const expectedRankingDefinitionId = demoId('ranking-definition');
+
+  const [countries, disciplines, statuses, events, externalIdentifiers, rankingDefinition] =
+    await Promise.all([
+      client.country.findMany({
+        where: { isoAlpha2: { in: [...expectedCountryIds.keys()] } },
+        select: { id: true, isoAlpha2: true, isDemo: true },
+      }),
+      client.discipline.findMany({
+        where: { code: { in: [...expectedDisciplineIds.keys()] } },
+        select: { id: true, code: true, isDemo: true },
+      }),
+      client.resultStatus.findMany({
+        where: { code: { in: [...expectedStatusIds.keys()] } },
+        select: { id: true, code: true, isDemo: true },
+      }),
+      client.competitionEvent.findMany({
+        where: { slug: { in: [...expectedEventIds.keys()] } },
+        select: { id: true, slug: true, isDemo: true },
+      }),
+      client.externalIdentifier.findMany({
+        where: {
+          namespace: 'FEM_DEMO',
+          identifierType: 'DEMO_RECORD_CODE',
+          normalizedValue: { in: [...expectedExternalIdentifierIds.keys()] },
+        },
+        select: { id: true, normalizedValue: true, isDemo: true },
+      }),
+      client.rankingDefinition.findUnique({
+        where: { code: 'DEMO_ATHLETE_RANKING' },
+        select: { id: true, isDemo: true },
+      }),
+    ]);
 
   const conflicts = [
     ...countries
@@ -112,6 +155,11 @@ async function assertNoNaturalKeyCollisions(
     ...events
       .filter((row) => !row.isDemo || row.id !== expectedEventIds.get(row.slug))
       .map((row) => `CompetitionEvent:${row.slug}`),
+    ...externalIdentifiers
+      .filter(
+        (row) => !row.isDemo || row.id !== expectedExternalIdentifierIds.get(row.normalizedValue),
+      )
+      .map((row) => `ExternalIdentifier:${row.normalizedValue}`),
     ...(rankingDefinition &&
     (!rankingDefinition.isDemo || rankingDefinition.id !== expectedRankingDefinitionId)
       ? ['RankingDefinition:DEMO_ATHLETE_RANKING']
@@ -129,19 +177,23 @@ async function assertNoDeterministicIdCollisions(client: SeedClient): Promise<vo
   const ids = (prefix: string, count: number): string[] =>
     Array.from({ length: count }, (_, index) => demoId(`${prefix}:${index + 1}`));
   const classIds = [1, 2, 3].flatMap((eventIndex) =>
-    ids(`class:${eventIndex}`, eventIndex === 3 ? 2 : 3),
+    ids(`class:${eventIndex}`, DEMO_CLASS_COUNT_PER_EVENT),
   );
   const demoIdentityGroups = {
     NationalFederation: [demoId('federation:moldova')],
-    Club: ids('club', 3),
-    Athlete: ids('athlete', 10),
-    AthleteClubMembership: ids('membership', 10),
-    Horse: ids('horse', 12),
-    AthleteHorseRelation: ids('athlete-horse', 12),
+    Club: ids('club', DEMO_CLUB_COUNT),
+    Athlete: ids('athlete', DEMO_ATHLETE_COUNT),
+    AthleteClubMembership: ids('membership', DEMO_ATHLETE_COUNT),
+    Horse: ids('horse', DEMO_HORSE_COUNT),
+    AthleteHorseRelation: ids('athlete-horse', DEMO_HORSE_COUNT),
     Owner: ids('owner', 5),
-    HorseOwnership: ids('ownership', 12),
+    HorseOwnership: ids('ownership', DEMO_HORSE_COUNT),
     CompetitionClass: classIds,
-    CompetitionResult: ids('result', 36),
+    CompetitionResult: ids('result', DEMO_RESULT_COUNT),
+    ExternalIdentifier: [
+      ...ids('external-id:athlete', DEMO_ATHLETE_COUNT),
+      ...ids('external-id:horse', DEMO_HORSE_COUNT),
+    ],
     RankingRuleSet: [demoId('ranking-rule-set')],
     RankingPeriod: [demoId('ranking-period')],
     RankingSnapshot: [demoId('ranking-snapshot')],
@@ -159,6 +211,7 @@ async function assertNoDeterministicIdCollisions(client: SeedClient): Promise<vo
     ownerships,
     classes,
     results,
+    externalIdentifiers,
     ruleSets,
     periods,
     snapshots,
@@ -204,6 +257,10 @@ async function assertNoDeterministicIdCollisions(client: SeedClient): Promise<vo
       where: { id: { in: demoIdentityGroups.CompetitionResult } },
       select: { id: true, isDemo: true },
     }),
+    client.externalIdentifier.findMany({
+      where: { id: { in: demoIdentityGroups.ExternalIdentifier } },
+      select: { id: true, isDemo: true },
+    }),
     client.rankingRuleSet.findMany({
       where: { id: { in: demoIdentityGroups.RankingRuleSet } },
       select: { id: true, isDemo: true },
@@ -233,6 +290,7 @@ async function assertNoDeterministicIdCollisions(client: SeedClient): Promise<vo
     ...nonDemoIdentityConflicts('HorseOwnership', ownerships),
     ...nonDemoIdentityConflicts('CompetitionClass', classes),
     ...nonDemoIdentityConflicts('CompetitionResult', results),
+    ...nonDemoIdentityConflicts('ExternalIdentifier', externalIdentifiers),
     ...nonDemoIdentityConflicts('RankingRuleSet', ruleSets),
     ...nonDemoIdentityConflicts('RankingPeriod', periods),
     ...nonDemoIdentityConflicts('RankingSnapshot', snapshots),
@@ -293,9 +351,54 @@ async function seedData(client: SeedClient): Promise<SeedSummary> {
   ] as const;
 
   const disciplineInput = [
-    ['DEMO_DRESSAGE', 'Demo Dressage'],
-    ['DEMO_JUMPING', 'Demo Jumping'],
-    ['DEMO_EVENTING', 'Demo Eventing'],
+    ['DEMO_DRESSAGE', 'Выездка (демо)'],
+    ['DEMO_JUMPING', 'Конкур (демо)'],
+    ['DEMO_EVENTING', 'Троеборье (демо)'],
+  ] as const;
+
+  const clubNames = [
+    'Клуб верховой езды «Кодру» — демо',
+    'Конноспортивный центр «Нистру» — демо',
+    'Арена Орхей — демо',
+    'Школа верховой езды «Стяуа» — демо',
+  ] as const;
+
+  const athleteInput = [
+    ['Ана', 'Ротару', 'MD'],
+    ['Михай', 'Лунгу', 'MD'],
+    ['Елена', 'Казаку', 'RO'],
+    ['Виктор', 'Нистор', 'MD'],
+    ['Ирина', 'Бежан', 'UA'],
+    ['Андрей', 'Тома', 'MD'],
+    ['София', 'Руссу', 'RO'],
+    ['Даниел', 'Морару', 'MD'],
+    ['Надя', 'Лупу', 'PL'],
+    ['Раду', 'Кожокару', 'MD'],
+    ['Мара', 'Истрате', 'RO'],
+    ['Ион', 'Негру', 'MD'],
+    ['Дарья', 'Викол', 'UA'],
+    ['Серджиу', 'Чебан', 'MD'],
+    ['Алина', 'Урсу', 'DE'],
+    ['Петру', 'Санду', 'MD'],
+  ] as const;
+
+  const horseInput = [
+    ['Aurora de Codru', 'AURORA DE CODRU', 'Кобыла', 'Молдавская спортивная', 'Гнедая'],
+    ['Nistru Blue', 'NISTRU BLUE', 'Мерин', 'Спортивная помесь', 'Серая'],
+    ['Luna de Orhei', null, 'Кобыла', 'Тракененская', 'Вороная'],
+    ['Steaua Sudului', 'STEAUA SUDULUI', 'Жеребец', 'Ганноверская', 'Рыжая'],
+    ['Codru Silver', 'CODRU SILVER', 'Мерин', 'Голштинская', 'Серая'],
+    ['Vânt de Stepă', null, 'Кобыла', 'Спортивная помесь', 'Гнедая'],
+    ['Moldova Dream', 'MOLDOVA DREAM', 'Кобыла', 'Ольденбургская', 'Темно-гнедая'],
+    ['Orion de Prut', 'ORION DE PRUT', 'Мерин', 'Тракененская', 'Вороная'],
+    ['Zefir Alb', null, 'Мерин', 'Липицианская', 'Серая'],
+    ['Caramel de Bălți', 'CARAMEL DE BALTI', 'Жеребец', 'Спортивная помесь', 'Рыжая'],
+    ['Dacia Nova', 'DACIA NOVA', 'Кобыла', 'Ганноверская', 'Гнедая'],
+    ['Nordic Echo', null, 'Мерин', 'Голштинская', 'Темно-гнедая'],
+    ['Primăvara', 'PRIMAVARA', 'Кобыла', 'Спортивная помесь', 'Рыжая'],
+    ['Atlas de Soroca', 'ATLAS DE SOROCA', 'Жеребец', 'Тракененская', 'Вороная'],
+    ['Miorița', null, 'Кобыла', 'Липицианская', 'Серая'],
+    ['Valul Nistrului', 'VALUL NISTRULUI', 'Мерин', 'Ольденбургская', 'Гнедая'],
   ] as const;
 
   await assertNoNaturalKeyCollisions(client, countryInput, disciplineInput);
@@ -350,13 +453,14 @@ async function seedData(client: SeedClient): Promise<SeedSummary> {
   });
 
   const clubIds: string[] = [];
-  for (let index = 1; index <= 3; index += 1) {
+  for (let index = 1; index <= DEMO_CLUB_COUNT; index += 1) {
     const id = demoId(`club:${index}`);
+    const name = requiredAt(clubNames, index - 1, 'club name');
     clubIds.push(id);
     await client.club.upsert({
       where: { id },
       update: {
-        name: `Demo Equestrian Club ${index}`,
+        name,
         countryId: moldova.id,
         nationalFederationId: federationId,
         status: RecordStatus.DRAFT,
@@ -365,7 +469,7 @@ async function seedData(client: SeedClient): Promise<SeedSummary> {
       },
       create: {
         id,
-        name: `Demo Equestrian Club ${index}`,
+        name,
         countryId: moldova.id,
         nationalFederationId: federationId,
         status: RecordStatus.DRAFT,
@@ -375,30 +479,74 @@ async function seedData(client: SeedClient): Promise<SeedSummary> {
   }
 
   const athleteIds: string[] = [];
-  for (let index = 1; index <= 10; index += 1) {
+  for (let index = 1; index <= DEMO_ATHLETE_COUNT; index += 1) {
     const id = demoId(`athlete:${index}`);
+    const [firstName, lastName, countryCode] = requiredAt(athleteInput, index - 1, 'athlete input');
+    const countryId = demoId(`country:${countryCode}`);
+    const status =
+      index % 7 === 0
+        ? RecordStatus.INACTIVE
+        : index % 5 === 0
+          ? RecordStatus.DRAFT
+          : RecordStatus.ACTIVE;
     athleteIds.push(id);
-    const suffix = index.toString().padStart(2, '0');
     await client.athlete.upsert({
       where: { id },
       update: {
-        firstName: 'Demo',
-        lastName: `Rider ${suffix}`,
-        displayName: `Demo Rider ${suffix}`,
-        countryId: moldova.id,
-        nationalFederationId: federationId,
-        status: RecordStatus.DRAFT,
+        firstName,
+        lastName,
+        displayName: `${firstName} ${lastName}`,
+        dateOfBirth: index % 4 === 0 ? null : date(`${1987 + (index % 14)}-0${(index % 8) + 1}-15`),
+        gender: index % 2 === 0 ? 'Мужской' : 'Женский',
+        countryId,
+        nationalFederationId: countryCode === 'MD' ? federationId : null,
+        status,
         isDemo: true,
         archivedAt: null,
       },
       create: {
         id,
-        firstName: 'Demo',
-        lastName: `Rider ${suffix}`,
-        displayName: `Demo Rider ${suffix}`,
-        countryId: moldova.id,
-        nationalFederationId: federationId,
-        status: RecordStatus.DRAFT,
+        firstName,
+        lastName,
+        displayName: `${firstName} ${lastName}`,
+        dateOfBirth: index % 4 === 0 ? null : date(`${1987 + (index % 14)}-0${(index % 8) + 1}-15`),
+        gender: index % 2 === 0 ? 'Мужской' : 'Женский',
+        countryId,
+        nationalFederationId: countryCode === 'MD' ? federationId : null,
+        status,
+        isDemo: true,
+      },
+    });
+    const athleteCode = `ATH-${index.toString().padStart(3, '0')}`;
+    await client.externalIdentifier.upsert({
+      where: {
+        namespace_identifierType_normalizedValue: {
+          namespace: 'FEM_DEMO',
+          identifierType: 'DEMO_RECORD_CODE',
+          normalizedValue: athleteCode,
+        },
+      },
+      update: {
+        entityType: 'Athlete',
+        entityId: id,
+        value: athleteCode,
+        normalizationVersion: 'demo-v1',
+        verificationStatus: VerificationStatus.UNVERIFIED,
+        isPrimary: true,
+        isDemo: true,
+        archivedAt: null,
+      },
+      create: {
+        id: demoId(`external-id:athlete:${index}`),
+        entityType: 'Athlete',
+        entityId: id,
+        identifierType: 'DEMO_RECORD_CODE',
+        namespace: 'FEM_DEMO',
+        value: athleteCode,
+        normalizedValue: athleteCode,
+        normalizationVersion: 'demo-v1',
+        verificationStatus: VerificationStatus.UNVERIFIED,
+        isPrimary: true,
         isDemo: true,
       },
     });
@@ -424,27 +572,78 @@ async function seedData(client: SeedClient): Promise<SeedSummary> {
   }
 
   const horseIds: string[] = [];
-  for (let index = 1; index <= 12; index += 1) {
+  for (let index = 1; index <= DEMO_HORSE_COUNT; index += 1) {
     const id = demoId(`horse:${index}`);
+    const [displayName, passportName, sex, breed, color] = requiredAt(
+      horseInput,
+      index - 1,
+      'horse input',
+    );
+    const countryCode = requiredAt(countryInput, (index - 1) % countryInput.length, 'country')[0];
+    const status =
+      index % 8 === 0
+        ? RecordStatus.INACTIVE
+        : index % 6 === 0
+          ? RecordStatus.DRAFT
+          : RecordStatus.ACTIVE;
     horseIds.push(id);
-    const suffix = index.toString().padStart(2, '0');
     await client.horse.upsert({
       where: { id },
       update: {
-        passportName: null,
-        displayName: `Demo Horse ${suffix}`,
+        passportName,
+        displayName,
         birthYear: 2012 + (index % 8),
-        countryOfBirthId: moldova.id,
-        status: RecordStatus.DRAFT,
+        sex,
+        breed,
+        color,
+        countryOfBirthId: demoId(`country:${countryCode}`),
+        status,
         isDemo: true,
         archivedAt: null,
       },
       create: {
         id,
-        displayName: `Demo Horse ${suffix}`,
+        passportName,
+        displayName,
         birthYear: 2012 + (index % 8),
-        countryOfBirthId: moldova.id,
-        status: RecordStatus.DRAFT,
+        sex,
+        breed,
+        color,
+        countryOfBirthId: demoId(`country:${countryCode}`),
+        status,
+        isDemo: true,
+      },
+    });
+    const horseCode = `HRS-${index.toString().padStart(3, '0')}`;
+    await client.externalIdentifier.upsert({
+      where: {
+        namespace_identifierType_normalizedValue: {
+          namespace: 'FEM_DEMO',
+          identifierType: 'DEMO_RECORD_CODE',
+          normalizedValue: horseCode,
+        },
+      },
+      update: {
+        entityType: 'Horse',
+        entityId: id,
+        value: horseCode,
+        normalizationVersion: 'demo-v1',
+        verificationStatus: VerificationStatus.UNVERIFIED,
+        isPrimary: true,
+        isDemo: true,
+        archivedAt: null,
+      },
+      create: {
+        id: demoId(`external-id:horse:${index}`),
+        entityType: 'Horse',
+        entityId: id,
+        identifierType: 'DEMO_RECORD_CODE',
+        namespace: 'FEM_DEMO',
+        value: horseCode,
+        normalizedValue: horseCode,
+        normalizationVersion: 'demo-v1',
+        verificationStatus: VerificationStatus.UNVERIFIED,
+        isPrimary: true,
         isDemo: true,
       },
     });
@@ -453,8 +652,8 @@ async function seedData(client: SeedClient): Promise<SeedSummary> {
       update: {
         athleteId: requiredAt(athleteIds, (index - 1) % athleteIds.length, 'athlete'),
         horseId: id,
-        relationType: null,
-        disciplineId: null,
+        relationType: 'Основная спортивная пара (демо)',
+        disciplineId: requiredAt(disciplines, (index - 1) % disciplines.length, 'discipline').id,
         startDate: date('2026-01-01'),
         endDate: null,
         isDemo: true,
@@ -464,6 +663,8 @@ async function seedData(client: SeedClient): Promise<SeedSummary> {
         id: demoId(`athlete-horse:${index}`),
         athleteId: requiredAt(athleteIds, (index - 1) % athleteIds.length, 'athlete'),
         horseId: id,
+        relationType: 'Основная спортивная пара (демо)',
+        disciplineId: requiredAt(disciplines, (index - 1) % disciplines.length, 'discipline').id,
         startDate: date('2026-01-01'),
         isDemo: true,
       },
@@ -515,8 +716,9 @@ async function seedData(client: SeedClient): Promise<SeedSummary> {
   }
 
   const statusInput = [
-    ['DEMO_FINISHED', 'Demo finished', true],
-    ['DEMO_STATUS_ONLY', 'Demo status only', false],
+    ['DEMO_FINISHED', 'Финишировал (демо)', true],
+    ['DEMO_STATUS_ONLY', 'Снялся с маршрута (демо)', false],
+    ['DEMO_DISQUALIFIED', 'Дисквалифицирован (демо)', false],
   ] as const;
   for (let index = 0; index < statusInput.length; index += 1) {
     const [code, label, isRankEligible] = requiredAt(statusInput, index, 'result status');
@@ -540,22 +742,47 @@ async function seedData(client: SeedClient): Promise<SeedSummary> {
   const statusOnly = await client.resultStatus.findUniqueOrThrow({
     where: { code: 'DEMO_STATUS_ONLY' },
   });
+  const disqualifiedStatus = await client.resultStatus.findUniqueOrThrow({
+    where: { code: 'DEMO_DISQUALIFIED' },
+  });
 
   const classIds: string[] = [];
   const eventIds: string[] = [];
+  const eventInput = [
+    [
+      'Кубок Кодру — демо',
+      'Кишинёв',
+      'Учебная арена «Кодру»',
+      'Федерация конного спорта — demo organizer',
+    ],
+    [
+      'Весенний турнир Нистру — демо',
+      'Вадул-луй-Водэ',
+      'Конноспортивная площадка «Нистру»',
+      'Demo Event Team',
+    ],
+    ['Открытая встреча Орхей — демо', 'Орхей', 'Арена Орхей', 'Demo Equestrian Group'],
+  ] as const;
   for (let eventIndex = 1; eventIndex <= 3; eventIndex += 1) {
     const eventId = demoId(`event:${eventIndex}`);
+    const [eventTitle, eventLocation, eventVenue, organizerName] = requiredAt(
+      eventInput,
+      eventIndex - 1,
+      'competition event input',
+    );
     eventIds.push(eventId);
     const eventDate = `2026-0${eventIndex + 5}-1${eventIndex}`;
     const event = await client.competitionEvent.upsert({
       where: { slug: `demo-event-${eventIndex}` },
       update: {
-        title: `Demo Competition Event ${eventIndex}`,
+        title: eventTitle,
         startDate: date(eventDate),
         endDate: date(eventDate),
+        location: eventLocation,
+        venue: eventVenue,
         countryId: moldova.id,
-        organizerName: 'Demo Organizer',
-        status: RecordStatus.DRAFT,
+        organizerName,
+        status: eventIndex === 3 ? RecordStatus.DRAFT : RecordStatus.ACTIVE,
         publicationStatus: PublicationStatus.DRAFT,
         publishedAt: null,
         isDemo: true,
@@ -563,34 +790,45 @@ async function seedData(client: SeedClient): Promise<SeedSummary> {
       },
       create: {
         id: eventId,
-        title: `Demo Competition Event ${eventIndex}`,
+        title: eventTitle,
         slug: `demo-event-${eventIndex}`,
         startDate: date(eventDate),
         endDate: date(eventDate),
+        location: eventLocation,
+        venue: eventVenue,
         countryId: moldova.id,
-        organizerName: 'Demo Organizer',
-        status: RecordStatus.DRAFT,
+        organizerName,
+        status: eventIndex === 3 ? RecordStatus.DRAFT : RecordStatus.ACTIVE,
         publicationStatus: PublicationStatus.DRAFT,
         isDemo: true,
       },
     });
     eventIds[eventIds.length - 1] = event.id;
-    const classCount = eventIndex === 3 ? 2 : 3;
-    for (let classIndex = 1; classIndex <= classCount; classIndex += 1) {
+    for (let classIndex = 1; classIndex <= DEMO_CLASS_COUNT_PER_EVENT; classIndex += 1) {
       const id = demoId(`class:${eventIndex}:${classIndex}`);
+      const category = requiredAt(
+        DEMO_CATEGORIES,
+        (eventIndex + classIndex - 2) % DEMO_CATEGORIES.length,
+        'demo category',
+      );
+      const level = requiredAt(
+        DEMO_LEVELS,
+        (eventIndex + classIndex - 2) % DEMO_LEVELS.length,
+        'demo level',
+      );
       classIds.push(id);
       await client.competitionClass.upsert({
         where: { id },
         update: {
           competitionEventId: event.id,
-          title: `Demo Class ${eventIndex}.${classIndex}`,
+          title: `${category}: программа ${classIndex}`,
           disciplineId: requiredAt(
             disciplines,
             (eventIndex + classIndex - 2) % disciplines.length,
             'discipline',
           ).id,
-          category: null,
-          level: null,
+          category,
+          level,
           competitionDate: date(eventDate),
           sortOrder: classIndex - 1,
           status: RecordStatus.DRAFT,
@@ -600,12 +838,14 @@ async function seedData(client: SeedClient): Promise<SeedSummary> {
         create: {
           id,
           competitionEventId: event.id,
-          title: `Demo Class ${eventIndex}.${classIndex}`,
+          title: `${category}: программа ${classIndex}`,
           disciplineId: requiredAt(
             disciplines,
             (eventIndex + classIndex - 2) % disciplines.length,
             'discipline',
           ).id,
+          category,
+          level,
           competitionDate: date(eventDate),
           sortOrder: classIndex - 1,
           status: RecordStatus.DRAFT,
@@ -617,11 +857,14 @@ async function seedData(client: SeedClient): Promise<SeedSummary> {
 
   const resultIdsByAthlete = new Map<string, string[]>();
   const resultIds: string[] = [];
-  for (let index = 1; index <= 36; index += 1) {
+  for (let index = 1; index <= DEMO_RESULT_COUNT; index += 1) {
     const athleteId = requiredAt(athleteIds, (index - 1) % athleteIds.length, 'athlete');
     const resultId = demoId(`result:${index}`);
     resultIds.push(resultId);
-    const isStatusOnly = index % 9 === 0;
+    const isDisqualified = index % 15 === 0;
+    const isStatusOnly = !isDisqualified && index % 10 === 0;
+    const status = isDisqualified ? disqualifiedStatus : isStatusOnly ? statusOnly : finishedStatus;
+    const hasRank = !isDisqualified && !isStatusOnly;
     await client.competitionResult.upsert({
       where: { id: resultId },
       update: {
@@ -632,12 +875,12 @@ async function seedData(client: SeedClient): Promise<SeedSummary> {
         ),
         athleteId,
         horseId: requiredAt(horseIds, (index - 1) % horseIds.length, 'horse'),
-        rank: isStatusOnly ? null : ((index - 1) % 6) + 1,
-        statusId: isStatusOnly ? statusOnly.id : finishedStatus.id,
-        resultDisplay: isStatusOnly ? 'DEMO STATUS ONLY' : `Demo result ${index}`,
-        penalties: null,
-        timeSeconds: isStatusOnly ? null : 60 + index,
-        points: null,
+        rank: hasRank ? ((index - 1) % 8) + 1 : null,
+        statusId: status.id,
+        resultDisplay: hasRank ? `${60 + index / 10} сек. (демо)` : status.label,
+        penalties: hasRank ? (index % 4) * 0.5 : null,
+        timeSeconds: hasRank ? 60 + index / 10 : null,
+        points: hasRank ? 70 + (index % 20) * 0.5 : null,
         bonus: null,
         publicationStatus: PublicationStatus.DRAFT,
         publishedAt: null,
@@ -655,10 +898,12 @@ async function seedData(client: SeedClient): Promise<SeedSummary> {
         ),
         athleteId,
         horseId: requiredAt(horseIds, (index - 1) % horseIds.length, 'horse'),
-        rank: isStatusOnly ? null : ((index - 1) % 6) + 1,
-        statusId: isStatusOnly ? statusOnly.id : finishedStatus.id,
-        resultDisplay: isStatusOnly ? 'DEMO STATUS ONLY' : `Demo result ${index}`,
-        timeSeconds: isStatusOnly ? null : 60 + index,
+        rank: hasRank ? ((index - 1) % 8) + 1 : null,
+        statusId: status.id,
+        resultDisplay: hasRank ? `${60 + index / 10} сек. (демо)` : status.label,
+        penalties: hasRank ? (index % 4) * 0.5 : null,
+        timeSeconds: hasRank ? 60 + index / 10 : null,
+        points: hasRank ? 70 + (index % 20) * 0.5 : null,
         publicationStatus: PublicationStatus.DRAFT,
         isDemo: true,
       },

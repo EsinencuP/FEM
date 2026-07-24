@@ -9,9 +9,7 @@ import { AppModule } from '../src/app.module';
 import { configureHttpApplication } from '../src/bootstrap/configure-http-application';
 import { assertSafeTestDatabaseEnvironment } from '../src/common/database/database-safety';
 import { AppConfigService } from '../src/config/app-config.service';
-import {
-  createAdminTestClient,
-} from './setup/admin-test-client';
+import { createAdminTestClient } from './setup/admin-test-client';
 import type { AdminTestClient } from './setup/admin-test-client';
 
 describe('Serializable write invariants (e2e)', () => {
@@ -77,15 +75,15 @@ describe('Serializable write invariants (e2e)', () => {
       cleanup.eventIds.push(event.id);
 
       const [shrink, createClass] = await Promise.all([
-        adminRequest.patch(`/api/v1/admin/competitions/${event.id}`).send({ endDate: '2027-05-05' }),
         adminRequest
-          .post('/api/v1/admin/competition-classes')
-          .send({
-            competitionEventId: event.id,
-            disciplineId: discipline.id,
-            title: `Concurrent Class ${suffix}`,
-            competitionDate: '2027-05-08',
-          }),
+          .patch(`/api/v1/admin/competitions/${event.id}`)
+          .send({ endDate: '2027-05-05' }),
+        adminRequest.post('/api/v1/admin/competition-classes').send({
+          competitionEventId: event.id,
+          disciplineId: discipline.id,
+          title: `Concurrent Class ${suffix}`,
+          competitionDate: '2027-05-08',
+        }),
       ]);
 
       expect([shrink.status, createClass.status].filter((status) => status < 300)).toHaveLength(1);

@@ -124,6 +124,84 @@ describe('ADMIN authentication and session security (e2e)', () => {
     }
   });
 
+  it('requires a distinct permission for wildcard version override', async () => {
+    const role = await prisma.role.findUniqueOrThrow({ where: { code: 'ADMIN' } });
+    const permission = await prisma.permission.findUniqueOrThrow({
+      where: { code: 'VERSION_OVERRIDE' },
+    });
+    const discipline = await prisma.discipline.findFirstOrThrow({
+      where: { archivedAt: null },
+    });
+    await prisma.rolePermission.deleteMany({
+      where: { roleId: role.id, permissionId: permission.id },
+    });
+    try {
+      const denied = await agent
+        .patch(`/api/v1/admin/disciplines/${discipline.id}`)
+        .set('X-CSRF-Token', csrfToken)
+        .set('If-Match', '*')
+        .set('X-Confirm-Action', 'true')
+        .set('X-Action-Reason', 'Attempt override without dedicated permission')
+        .send({ name: discipline.name })
+        .expect(403);
+      expect(denied.body).toMatchObject({ code: 'VERSION_OVERRIDE_DENIED' });
+    } finally {
+      await prisma.rolePermission.upsert({
+        where: {
+          roleId_permissionId: {
+            roleId: role.id,
+            permissionId: permission.id,
+          },
+        },
+        update: {},
+        create: { roleId: role.id, permissionId: permission.id },
+      });
+    }
+
+    const beforeOverride = await prisma.discipline.findUniqueOrThrow({
+      where: { id: discipline.id },
+    });
+    await agent
+      .patch(`/api/v1/admin/disciplines/${discipline.id}`)
+      .set('X-CSRF-Token', csrfToken)
+      .set('If-Match', '*')
+      .send({ name: discipline.name })
+      .expect(400);
+
+    const overrideReason = 'Emergency correction with explicit version override';
+    const overrideName = `${discipline.name} override`;
+    const overridden = await agent
+      .patch(`/api/v1/admin/disciplines/${discipline.id}`)
+      .set('X-CSRF-Token', csrfToken)
+      .set('If-Match', '*')
+      .set('X-Confirm-Action', 'true')
+      .set('X-Action-Reason', overrideReason)
+      .send({ name: overrideName })
+      .expect(200);
+    expect(
+      z
+        .object({ data: z.object({ version: z.number().int(), name: z.string() }).loose() })
+        .parse(overridden.body).data,
+    ).toMatchObject({
+      version: beforeOverride.version + 1,
+      name: overrideName,
+    });
+    const overrideAudit = await prisma.auditLog.findFirstOrThrow({
+      where: {
+        actorId: identity.userId,
+        sessionId,
+        entityType: 'Discipline',
+        entityId: discipline.id,
+        reason: overrideReason,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    expect(overrideAudit.oldData).toMatchObject({ version: beforeOverride.version });
+    expect(overrideAudit.newData).toMatchObject({
+      payload: { name: overrideName, version: beforeOverride.version + 1 },
+    });
+  });
+
   it('rotates one-time recovery codes, audits auth events and revokes logout', async () => {
     // Simulate the next TOTP window without making the suite wait for 30 seconds.
     await prisma.userCredential.update({
@@ -140,10 +218,7 @@ describe('ADMIN authentication and session security (e2e)', () => {
       .object({ data: z.object({ recoveryCodes: z.array(z.string()).length(10) }) })
       .parse(rotated.body).data.recoveryCodes;
 
-    await agent
-      .post('/api/v1/auth/logout')
-      .set('X-CSRF-Token', csrfToken)
-      .expect(204);
+    await agent.post('/api/v1/auth/logout').set('X-CSRF-Token', csrfToken).expect(204);
     await agent.get('/api/v1/auth/me').expect(401);
 
     const recovered = await agent
@@ -155,6 +230,8 @@ describe('ADMIN authentication and session security (e2e)', () => {
       })
       .expect(200);
     csrfToken = loginSchema.parse(recovered.body).data.csrfToken;
+    const restricted = await agent.get('/api/v1/admin/athletes').expect(403);
+    expect(restricted.body).toMatchObject({ code: 'RECOVERY_SESSION_RESTRICTED' });
 
     const concurrentAttempts = await Promise.all(
       [request(app.getHttpServer()), request(app.getHttpServer())].map((client) =>
@@ -166,6 +243,20 @@ describe('ADMIN authentication and session security (e2e)', () => {
       ),
     );
     expect(concurrentAttempts.map(({ status }) => status).sort()).toEqual([200, 401]);
+
+    await prisma.userCredential.update({
+      where: { userId: identity.userId },
+      data: { lastTotpStep: null },
+    });
+    const normalLogin = await agent
+      .post('/api/v1/auth/login')
+      .send({
+        email: identity.email,
+        password: identity.password,
+        otp: authenticator.generate(identity.secret),
+      })
+      .expect(200);
+    csrfToken = loginSchema.parse(normalLogin.body).data.csrfToken;
 
     const authAuditCount = await prisma.auditLog.count({
       where: {
@@ -221,9 +312,7 @@ describe('ADMIN authentication and session security (e2e)', () => {
       .set('Idempotency-Key', randomUUID())
       .send({ code: `AUDIT_${suffix}`, name: `Audit ${suffix}` })
       .expect(201);
-    const disciplineId = z
-      .object({ data: z.object({ id: z.uuid() }) })
-      .parse(created.body).data.id;
+    const disciplineId = z.object({ data: z.object({ id: z.uuid() }) }).parse(created.body).data.id;
     const audit = await prisma.auditLog.findFirst({
       where: {
         actorId: identity.userId,
@@ -308,9 +397,7 @@ describe('ADMIN authentication and session security (e2e)', () => {
       await prisma.$executeRawUnsafe(
         'DROP TRIGGER IF EXISTS "AuditLog_reject_selected_insert" ON "AuditLog";',
       );
-      await prisma.$executeRawUnsafe(
-        'DROP FUNCTION IF EXISTS "reject_selected_audit_insert"();',
-      );
+      await prisma.$executeRawUnsafe('DROP FUNCTION IF EXISTS "reject_selected_audit_insert"();');
     }
   });
 
@@ -361,5 +448,77 @@ describe('ADMIN authentication and session security (e2e)', () => {
       .set('Idempotency-Key', key)
       .send({ ...payload, name: 'Conflicting payload' })
       .expect(409);
+  });
+
+  it('reclaims unrelated expired idempotency payloads and preserves active records', async () => {
+    const marker = randomUUID().replaceAll('-', '');
+    const expiredId = `${marker}${marker}`;
+    const activeMarker = randomUUID().replaceAll('-', '');
+    const activeId = `${activeMarker}${activeMarker}`;
+    const createdAt = new Date(Date.now() - 48 * 60 * 60_000);
+    const expiresAt = new Date(Date.now() - 24 * 60 * 60_000);
+    await prisma.idempotencyRecord.createMany({
+      data: [
+        {
+          id: expiredId,
+          actorId: identity.userId,
+          sessionId,
+          key: `expired-retention-${marker}`,
+          method: 'POST',
+          path: '/api/v1/admin/disciplines',
+          requestHash: 'a'.repeat(64),
+          responseStatus: 201,
+          responseBody: { sensitive: 'expired-test-payload' },
+          createdAt,
+          expiresAt,
+        },
+        {
+          id: activeId,
+          actorId: identity.userId,
+          sessionId,
+          key: `active-retention-${marker}`,
+          method: 'POST',
+          path: '/api/v1/admin/disciplines',
+          requestHash: 'b'.repeat(64),
+          responseStatus: 201,
+          responseBody: { retained: true },
+          expiresAt: new Date(Date.now() + 24 * 60 * 60_000),
+        },
+      ],
+    });
+
+    const disciplineIds: string[] = [];
+    try {
+      for (let index = 0; index < 16; index += 1) {
+        const response = await agent
+          .post('/api/v1/admin/disciplines')
+          .set('X-CSRF-Token', csrfToken)
+          .set('Idempotency-Key', `retention-${marker}-${index}`)
+          .send({
+            code: `RETENTION_${marker.slice(0, 8)}_${index}`,
+            name: `Retention ${marker.slice(0, 8)} ${index}`,
+          })
+          .expect(201);
+        disciplineIds.push(
+          z.object({ data: z.object({ id: z.uuid() }) }).parse(response.body).data.id,
+        );
+      }
+      await expect(
+        prisma.idempotencyRecord.findUnique({ where: { id: expiredId } }),
+      ).resolves.toBeNull();
+      await expect(
+        prisma.idempotencyRecord.findUnique({ where: { id: activeId } }),
+      ).resolves.toMatchObject({ id: activeId });
+    } finally {
+      await prisma.discipline.deleteMany({ where: { id: { in: disciplineIds } } });
+      await prisma.idempotencyRecord.deleteMany({
+        where: {
+          OR: [
+            { id: { in: [expiredId, activeId] } },
+            { key: { startsWith: `retention-${marker}-` } },
+          ],
+        },
+      });
+    }
   });
 });

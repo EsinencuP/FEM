@@ -1,46 +1,49 @@
-# API Contract Audit
+# API contract audit
 
-Status: **CONDITIONAL PASS for private MVP development; NO-GO for Internet exposure**
+Updated: 2026-07-24
+Stage 1 contract: **STRICT GO**
+Stage 2 contract: **STRICT GO**
+Stage 3 Public contract: **implemented; full regression/review gate pending**
 
 ## Runtime inventory
 
-- Controllers: 10.
-- Operations: 85 across 59 OpenAPI paths.
-- Write operations: 53.
-- Authentication/security schemes: 0.
-- Public routes: 0.
-- Protected admin namespace: 0.
+- Global prefix: `/api`; versioned application routes: `/api/v1`.
+- Domain namespace: `/api/v1/admin/*`.
+- Authentication: `/api/v1/auth/*`.
+- Audit: `/api/v1/admin/audit-logs`.
+- Public sports projection: `/api/v1/public/{ro|ru}/*`.
+- OpenAPI currently covers 115 operations including authentication, audit,
+  publication commands and 14 Public GET operations.
+- Health remains the bare `/api/health` operational contract.
 
-## Corrected contract defects
+## Stable frontend contracts
 
-- Literal query `false` is no longer coerced to `true`.
-- Generic update DTOs reject `{}` and unknown fields.
-- A result requires a direct outcome or at least one valid metric.
-- Oversized and malformed JSON return correlated 413/400 envelopes.
-- All 85 operations have an explicit 2xx response contract.
-- Existing explicit contracts are preserved: health remains a bare
-  `HealthResponseDto`, not a `{data}` envelope.
-- Nested identifier GET routes are classified as list envelopes.
-- DELETE ResultMetric is explicitly documented as 204.
+- typed `{data}` and `{data,meta}` envelopes;
+- allowlisted sort/filter fields and stable ID tie-break;
+- strict DTOs reject unknown/system fields;
+- safe correlated error envelope;
+- named resource/detail/list/relation schemas;
+- UUID path metadata and 100 KiB/413 documentation;
+- credentialed exact-origin CORS;
+- cookie security scheme plus 401/403/429;
+- Admin POST `Idempotency-Key`;
+- Admin PATCH numeric `If-Match` and resource `version`;
+- critical-action confirmation/reason headers.
+- separate named `Public*` response schemas, no Admin DTO reuse;
+- Public ETag/304/cache/language headers and anonymous `security: []`.
 
-The OpenAPI E2E suite verifies operation count, 2xx coverage, reusable
-pagination metadata, typed health and nested-list classification.
+## Security separation
 
-## Residual contract limitations
+No unauthenticated domain write route is registered. Admin serializers contain
+internal/draft fields and are not reused by Public API responses. Stage 3 uses
+distinct published-only locale-aware Prisma selects and response components.
 
-- Resource properties inside `DataEnvelope` and `ListEnvelope` remain open
-  objects. This is a documented MEDIUM limitation for generated clients.
-- No public/admin split exists. Current `/api/v1` reads are administrative-like
-  and may return draft, archived or internal fields when requested.
-- No 401/403 contract exists because authentication and roles are explicitly
-  outside this stabilization scope.
-- Publication is fail-closed: generic competition/result DTOs reject
-  publication fields, but no authenticated publish command exists.
-- Optimistic locking and idempotency-key semantics require a client contract.
+Generic competition/result mutation rejects publication fields. Dedicated
+protected, confirmed, versioned and audit-atomic publish/withdraw commands are
+the only supported publication transition.
 
-## Decision
+## Gate
 
-The structural Swagger/runtime mismatch is fixed for the private MVP. Explicit
-resource response DTOs must be designed together with public allowlists and the
-protected admin API. Until then the API is unsuitable for public or
-administrative production integration.
+The OpenAPI E2E contract is green. The committed snapshot/checksum is refreshed
+after each accepted contract shape and checked in CI. Public Internet exposure
+remains NO-GO until the remaining CMS/integration/production gates pass.

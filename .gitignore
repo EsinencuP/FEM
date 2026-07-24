@@ -2,6 +2,8 @@
 node_modules/
 dist/
 coverage/
+apps/demo-web/dist/
+apps/demo-web/coverage/
 *.tsbuildinfo
 
 # Environment files contain secrets

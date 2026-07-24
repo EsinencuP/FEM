@@ -45,6 +45,7 @@ export class ApiExceptionFilter implements ExceptionFilter {
       return;
     }
     const normalized = this.normalize(exception);
+    response.setHeader('Cache-Control', 'no-store');
     const responseRequestId = response.getHeader('x-request-id');
     const requestWithId = request as Request & { id?: unknown };
     const requestId =

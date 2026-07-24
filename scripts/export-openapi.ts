@@ -5,11 +5,6 @@ import { resolve } from 'node:path';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { Test } from '@nestjs/testing';
 
-import { AppModule } from '../src/app.module';
-import { configureHttpApplication } from '../src/bootstrap/configure-http-application';
-import { createOpenApiDocument } from '../src/bootstrap/openapi';
-import { AppConfigService } from '../src/config/app-config.service';
-
 const CHECK_MODE = process.argv.includes('--check');
 
 async function readSnapshot(path: string): Promise<string | undefined> {
@@ -28,6 +23,22 @@ async function readSnapshot(path: string): Promise<string | undefined> {
 }
 
 async function exportOpenApi(): Promise<void> {
+  if (process.env.NODE_ENV !== 'production' && !process.env.AUTH_ENCRYPTION_KEY?.trim()) {
+    process.env.AUTH_ENCRYPTION_KEY = createHash('sha256')
+      .update('fem-openapi-export-tool-only-key')
+      .digest('hex');
+  }
+  const [
+    { AppModule },
+    { configureHttpApplication },
+    { createOpenApiDocument },
+    { AppConfigService },
+  ] = await Promise.all([
+    import('../src/app.module'),
+    import('../src/bootstrap/configure-http-application'),
+    import('../src/bootstrap/openapi'),
+    import('../src/config/app-config.service'),
+  ]);
   const moduleRef = await Test.createTestingModule({ imports: [AppModule] }).compile();
   const app = moduleRef.createNestApplication<NestExpressApplication>({ bodyParser: false });
 

@@ -29,10 +29,10 @@ export function configureHttpApplication(
 ): void {
   app.use(
     helmet({
-      strictTransportSecurity: config.isProduction
-        && config.hstsEnabled
-        ? { maxAge: 31_536_000, includeSubDomains: true, preload: false }
-        : false,
+      strictTransportSecurity:
+        config.isProduction && config.hstsEnabled
+          ? { maxAge: 31_536_000, includeSubDomains: true, preload: false }
+          : false,
     }),
   );
   app.use(cookieParser());
@@ -61,6 +61,7 @@ export function configureHttpApplication(
     allowedHeaders: [
       'Authorization',
       'Content-Type',
+      'If-None-Match',
       'Idempotency-Key',
       'If-Match',
       'X-Action-Reason',
@@ -68,7 +69,14 @@ export function configureHttpApplication(
       'X-CSRF-Token',
       'X-Request-Id',
     ],
-    exposedHeaders: ['ETag', 'Idempotency-Replayed', 'X-Request-Id'],
+    exposedHeaders: [
+      'Cache-Control',
+      'Content-Language',
+      'ETag',
+      'Idempotency-Replayed',
+      'Retry-After',
+      'X-Request-Id',
+    ],
     methods: ['GET', 'HEAD', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
     maxAge: 600,
   });

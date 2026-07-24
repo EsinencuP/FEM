@@ -1,4 +1,9 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import type { Athlete, AthleteClubMembership, AthleteHorseRelation, Prisma } from '@prisma/client';
 import { assertActiveRecord } from '../../common/database/archive-policy';
 import {
@@ -17,6 +22,13 @@ import {
   paginationArgs,
   type PaginationQuery,
 } from '../../common/pagination/pagination.dto';
+import {
+  assertProfileMutable,
+  assertProfilePublishable,
+  assertProfileWithdrawable,
+  profilePublishData,
+} from '../../common/publication/profile-publication';
+import { publicAthleteDependenciesWhere } from '../../common/publication/public-visibility';
 import { PrismaService } from '../../database/prisma.service';
 import type {
   AthleteListQueryDto,
@@ -41,6 +53,7 @@ export class AthletesService {
         ]
       : [];
     const archivedAt = archivedAtFilter(q.archived);
+    const now = new Date();
     const where: Prisma.AthleteWhereInput = {
       ...(archivedAt !== undefined ? { archivedAt } : {}),
       ...(q.countryId !== undefined ? { countryId: q.countryId } : {}),
@@ -66,13 +79,68 @@ export class AthletesService {
           updatedAt: true,
           country: { select: { id: true, isoAlpha2: true, name: true } },
           nationalFederation: { select: { id: true, name: true, shortName: true } },
+          clubMemberships: {
+            where: {
+              archivedAt: null,
+              startDate: { lte: now },
+              OR: [{ endDate: null }, { endDate: { gte: now } }],
+              club: { archivedAt: null },
+            },
+            take: 5,
+            orderBy: [{ startDate: 'desc' }, { id: 'asc' }],
+            select: {
+              id: true,
+              membershipType: true,
+              startDate: true,
+              endDate: true,
+              club: { select: { id: true, name: true, status: true } },
+            },
+          },
         },
         orderBy: [{ [q.sortBy]: q.sortOrder }, { id: 'asc' }],
         ...paginationArgs(q),
       }),
       this.prisma.athlete.count({ where }),
     ]);
-    return listResponse(data, q.page, q.limit, total);
+    const identifiers =
+      data.length === 0
+        ? []
+        : await this.prisma.externalIdentifier.findMany({
+            where: {
+              entityType: 'Athlete',
+              entityId: { in: data.map(({ id }) => id) },
+              archivedAt: null,
+            },
+            orderBy: [{ entityId: 'asc' }, { isPrimary: 'desc' }, { createdAt: 'desc' }],
+            select: {
+              id: true,
+              entityId: true,
+              identifierType: true,
+              namespace: true,
+              value: true,
+              verificationStatus: true,
+              isPrimary: true,
+            },
+          });
+    const primaryIdentifierByAthlete = new Map<
+      string,
+      Omit<(typeof identifiers)[number], 'entityId'>
+    >();
+    for (const { entityId, ...identifier } of identifiers) {
+      if (!primaryIdentifierByAthlete.has(entityId)) {
+        primaryIdentifierByAthlete.set(entityId, identifier);
+      }
+    }
+    return listResponse(
+      data.map(({ clubMemberships, ...athlete }) => ({
+        ...athlete,
+        currentClubs: clubMemberships,
+        primaryIdentifier: primaryIdentifierByAthlete.get(athlete.id) ?? null,
+      })),
+      q.page,
+      q.limit,
+      total,
+    );
   }
   async get(id: string): Promise<DataResponse<unknown>> {
     const athlete = await this.prisma.athlete.findUniqueOrThrow({
@@ -166,6 +234,7 @@ export class AthletesService {
     return withSerializableTransaction(this.prisma, async (transaction) => {
       const current = await transaction.athlete.findUniqueOrThrow({ where: { id } });
       assertActiveRecord(current, 'athlete');
+      assertProfileMutable(current, 'athlete');
       const [country, federation, photo] = await Promise.all([
         dto.countryId
           ? transaction.country.findUnique({
@@ -241,6 +310,43 @@ export class AthletesService {
       );
       return dataResponse(
         await transaction.athlete.update({ where: { id }, data: { archivedAt: null } }),
+      );
+    });
+  }
+  async publish(id: string): Promise<DataResponse<Athlete>> {
+    return withSerializableTransaction(this.prisma, async (transaction) => {
+      const current = await transaction.athlete.findUniqueOrThrow({ where: { id } });
+      assertActiveRecord(current, 'athlete');
+      assertProfilePublishable(current, 'athlete');
+      const now = new Date();
+      const candidate = await transaction.athlete.findFirst({
+        where: { AND: [{ id }, publicAthleteDependenciesWhere(now)] },
+        select: { id: true },
+      });
+      if (!candidate) {
+        throw new ConflictException({
+          message: 'Athlete publication dependencies are not publicly visible',
+          code: 'PUBLICATION_DEPENDENCY_INVALID',
+        });
+      }
+      return dataResponse(
+        await transaction.athlete.update({
+          where: { id },
+          data: profilePublishData(current),
+        }),
+      );
+    });
+  }
+  async withdraw(id: string): Promise<DataResponse<Athlete>> {
+    return withSerializableTransaction(this.prisma, async (transaction) => {
+      const current = await transaction.athlete.findUniqueOrThrow({ where: { id } });
+      assertActiveRecord(current, 'athlete');
+      assertProfileWithdrawable(current, 'athlete');
+      return dataResponse(
+        await transaction.athlete.update({
+          where: { id },
+          data: { publicationStatus: 'WITHDRAWN' },
+        }),
       );
     });
   }

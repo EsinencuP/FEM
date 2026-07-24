@@ -87,6 +87,18 @@ jobs:
       - name: Unit tests
         run: pnpm test
 
+      - name: Demo-web lint
+        run: pnpm web:lint
+
+      - name: Demo-web typecheck
+        run: pnpm web:typecheck
+
+      - name: Demo-web tests
+        run: pnpm web:test
+
+      - name: Demo-web build
+        run: pnpm web:build
+
       - name: Apply migrations to ephemeral PostgreSQL
         run: pnpm prisma:migrate:deploy
 
@@ -101,5 +113,11 @@ jobs:
       - name: Verify committed OpenAPI contract
         run: pnpm openapi:check
 
+      - name: Verify generated frontend API types
+        run: pnpm openapi:types:check
+
       - name: Build
         run: pnpm build
+
+      - name: Restricted production runtime smoke
+        run: pnpm test:runtime-role

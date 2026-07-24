@@ -1,4 +1,9 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import type { AthleteHorseRelation, Horse, HorseOwnership, Prisma } from '@prisma/client';
 
 import { assertActiveRecord } from '../../common/database/archive-policy';
@@ -18,6 +23,13 @@ import {
   paginationArgs,
   type PaginationQuery,
 } from '../../common/pagination/pagination.dto';
+import {
+  assertProfileMutable,
+  assertProfilePublishable,
+  assertProfileWithdrawable,
+  profilePublishData,
+} from '../../common/publication/profile-publication';
+import { publicHorseDependenciesWhere } from '../../common/publication/public-visibility';
 import { PrismaService } from '../../database/prisma.service';
 import type {
   CreateHorseAthleteRelationDto,
@@ -76,12 +88,49 @@ export class HorsesService {
       }),
       this.prisma.horse.count({ where }),
     ]);
-    return listResponse(data, query.page, query.limit, total);
+    const identifiers =
+      data.length === 0
+        ? []
+        : await this.prisma.externalIdentifier.findMany({
+            where: {
+              entityType: 'Horse',
+              entityId: { in: data.map(({ id }) => id) },
+              archivedAt: null,
+            },
+            orderBy: [{ entityId: 'asc' }, { isPrimary: 'desc' }, { createdAt: 'desc' }],
+            select: {
+              id: true,
+              entityId: true,
+              identifierType: true,
+              namespace: true,
+              value: true,
+              verificationStatus: true,
+              isPrimary: true,
+            },
+          });
+    const primaryIdentifierByHorse = new Map<
+      string,
+      Omit<(typeof identifiers)[number], 'entityId'>
+    >();
+    for (const { entityId, ...identifier } of identifiers) {
+      if (!primaryIdentifierByHorse.has(entityId)) {
+        primaryIdentifierByHorse.set(entityId, identifier);
+      }
+    }
+    return listResponse(
+      data.map((horse) => ({
+        ...horse,
+        primaryIdentifier: primaryIdentifierByHorse.get(horse.id) ?? null,
+      })),
+      query.page,
+      query.limit,
+      total,
+    );
   }
 
   async get(id: string): Promise<DataResponse<unknown>> {
-    return dataResponse(
-      await this.prisma.horse.findUniqueOrThrow({
+    const [horse, identifiers] = await Promise.all([
+      this.prisma.horse.findUniqueOrThrow({
         where: { id },
         include: {
           countryOfBirth: { select: { id: true, isoAlpha2: true, name: true } },
@@ -97,9 +146,39 @@ export class HorsesService {
             orderBy: { startDate: 'desc' },
             include: { athlete: { select: { id: true, displayName: true, status: true } } },
           },
+          competitionResults: {
+            where: { archivedAt: null },
+            take: 10,
+            orderBy: { createdAt: 'desc' },
+            include: {
+              competitionClass: {
+                select: {
+                  id: true,
+                  title: true,
+                  competitionEvent: { select: { id: true, title: true, slug: true } },
+                },
+              },
+              athlete: { select: { id: true, displayName: true } },
+              status: { select: { id: true, code: true, label: true } },
+            },
+          },
         },
       }),
-    );
+      this.prisma.externalIdentifier.findMany({
+        where: { entityType: 'Horse', entityId: id, archivedAt: null },
+        take: 20,
+        orderBy: [{ isPrimary: 'desc' }, { createdAt: 'desc' }],
+        select: {
+          id: true,
+          identifierType: true,
+          namespace: true,
+          value: true,
+          verificationStatus: true,
+          isPrimary: true,
+        },
+      }),
+    ]);
+    return dataResponse({ ...horse, externalIdentifiers: identifiers });
   }
 
   async create(dto: CreateHorseDto): Promise<DataResponse<Horse>> {
@@ -130,6 +209,7 @@ export class HorsesService {
     return withSerializableTransaction(this.prisma, async (transaction) => {
       const current = await transaction.horse.findUniqueOrThrow({ where: { id } });
       assertActiveRecord(current, 'horse');
+      assertProfileMutable(current, 'horse');
       const [country, image] = await Promise.all([
         dto.countryOfBirthId
           ? transaction.country.findUnique({
@@ -189,6 +269,45 @@ export class HorsesService {
       );
       return dataResponse(
         await transaction.horse.update({ where: { id }, data: { archivedAt: null } }),
+      );
+    });
+  }
+
+  async publish(id: string): Promise<DataResponse<Horse>> {
+    return withSerializableTransaction(this.prisma, async (transaction) => {
+      const current = await transaction.horse.findUniqueOrThrow({ where: { id } });
+      assertActiveRecord(current, 'horse');
+      assertProfilePublishable(current, 'horse');
+      const now = new Date();
+      const candidate = await transaction.horse.findFirst({
+        where: { AND: [{ id }, publicHorseDependenciesWhere(now)] },
+        select: { id: true },
+      });
+      if (!candidate) {
+        throw new ConflictException({
+          message: 'Horse publication dependencies are not publicly visible',
+          code: 'PUBLICATION_DEPENDENCY_INVALID',
+        });
+      }
+      return dataResponse(
+        await transaction.horse.update({
+          where: { id },
+          data: profilePublishData(current),
+        }),
+      );
+    });
+  }
+
+  async withdraw(id: string): Promise<DataResponse<Horse>> {
+    return withSerializableTransaction(this.prisma, async (transaction) => {
+      const current = await transaction.horse.findUniqueOrThrow({ where: { id } });
+      assertActiveRecord(current, 'horse');
+      assertProfileWithdrawable(current, 'horse');
+      return dataResponse(
+        await transaction.horse.update({
+          where: { id },
+          data: { publicationStatus: 'WITHDRAWN' },
+        }),
       );
     });
   }

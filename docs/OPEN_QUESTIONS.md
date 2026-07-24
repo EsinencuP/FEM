@@ -1,69 +1,83 @@
-# Open Questions
+# Открытые решения FEM
 
-Вопросы оставлены открытыми намеренно; ответы не требуются для каркаса первого этапа и не подменяются вымышленными бизнес-правилами.
+Дата актуализации: 2026-07-24
 
-## Platform and operations
+Здесь находятся только решения владельца проекта или FEM. Они не разрешают
+агенту расширять scope.
 
-- Какой managed PostgreSQL provider будет утверждён для staging и production?
-- Нужен ли внешний connection pooler и какие лимиты соединений действуют у выбранного provider?
-- Где будут храниться и ротироваться secrets: GitHub Environments, cloud secret manager или другой approved vault?
-- Каковы требования к backup retention, point-in-time recovery и регулярным restore tests?
-- Какая observability platform будет собирать логи, метрики и traces?
-- Где будет размещён backend и как организуются zero-downtime migrations?
+## Уже зафиксировано
 
-## API and security
+- первый результат — внутренний demo-инструмент учёта;
+- сначала готовится БД/Admin API, затем frontend;
+- обязательны таблицы спортсменов и лошадей;
+- обязательны поиск, фильтры, сортировка и пагинация;
+- соревнования содержат категории/классы и результаты;
+- заказчику не показывают БД, Swagger и отладку;
+- обучение, Excel и реальные данные выполняются позже;
+- лишние страницы не создаются;
+- Public API и публичный сайт не блокируют demo;
+- текущая Prisma-схема сохраняется;
+- 1–3 оператора и небольшой объём данных не требуют enterprise-инфраструктуры.
 
-- Какие точные origins разрешить CORS для будущего frontend?
-- Какой identity provider и authentication protocol будут утверждены?
-- Нужны ли API versioning policy, rate limits и public/private API separation?
-- Как публиковать и проверять изменения OpenAPI contract для frontend-команды?
-- Какие требования к audit trail и хранению персональных данных применимы по законодательству Молдовы и ЕС?
+## Provisional решения Этапа 0
 
-## Delivery
+Чтобы не блокировать DB/API preparation, зафиксированы обратимые настройки:
 
-- Какие protected branch rules и обязательные reviewers будут настроены?
-- Нужны ли отдельные staging smoke tests с временной тестовой базой?
-- Какая стратегия dependency updates и security scanning будет принята?
+- основной язык demo — RU;
+- брендинг пока использует нейтральную систему из `design-constitution.md`;
+- категории — `Открытый класс (демо)`, `Юниоры (демо)`,
+  `Любители (демо)`, `Молодые лошади (демо)`;
+- колонки и формы зафиксированы в `delivery/FRONTEND_API_MATRIX.md`;
+- безопасное редактирование во время показа — поле площадки `venue` у
+  demo-соревнования;
+- используются только вымышленные данные с `isDemo=true`.
 
-## Identity, privacy and governance
+Эти решения не являются утверждением FEM и могут быть заменены без миграции
+схемы.
 
-- Какой identity provider, lifecycle пользователя, permission model и набор role codes будут утверждены?
-- Каковы правила публичности даты рождения, пола, владельцев, external identifiers и provenance?
-- Каковы сроки хранения, anonymization/legal erasure и audit retention по требованиям Молдовы и ЕС?
-- Нужен ли в следующей версии database-enforced entity registry вместо application-enforced polymorphic targets?
-- Кто может merge, verify, archive, restore, approve и publish; нужен ли four-eyes control?
-- Как выполнять юридически требуемую анонимизацию approval actor без потери неизменяемого доказательства утверждения?
+## Требуют подтверждения владельца проекта
 
-## Official identifiers and imports
+1. Основной язык demo: RU или RO.
+2. Утверждены ли логотип, цвета и шрифт.
+3. Какие названия категорий использовать в demo.
+4. Какие поля обязательны в таблице спортсменов.
+5. Какие поля обязательны в таблице лошадей.
+6. Какие поля разрешено редактировать во время показа.
+7. Использовать вымышленные данные или подтверждённые данные FEM.
 
-- Какие identifier types/namespaces официально поддерживаются и какие из них публичны/primary?
-- Какие issuer-specific правила case, punctuation, leading zeros и check digits утверждены?
-- Какие источники являются trusted и когда external identifier считается verified?
-- Допустимо ли переиспользование официального номера источником и как отражать исправления?
-- Какие форматы импорта, правила повторного checksum и retention raw rows утверждены?
+До ответа применяются provisional решения выше. Они не блокируют Этапы 1–3.
 
-## Domain vocabularies and temporal rules
+## Не блокирует разработку первых таблиц
 
-- Каковы официальные справочники gender/sex, discipline, category, level, club/athlete/horse status и relation types?
-- Может ли спортсмен одновременно состоять в нескольких клубах и может ли лошадь иметь нескольких активных спортсменов?
-- Как трактовать co-ownership и должен ли total ownership share равняться 100%?
-- Что делать с исторической связью, если точная start date неизвестна? Система не будет придумывать дату.
-- Какие поля спортсменов, лошадей и владельцев обязательны для официальной публикации?
+- финальная формула рейтинга;
+- Excel-формат;
+- правила владельцев;
+- новости/CMS;
+- второй язык;
+- регистрация и платежи;
+- публичное отображение данных.
 
-## Competitions and results
+## Решить после demo
 
-- Какие спортивные result-status codes и их отображение официально утверждены?
-- Возможны ли несколько результатов одной пары в одном классе из-за фаз, раундов или corrections?
-- Каковы единицы, precision, диапазоны и семантика penalties, time, points, bonus и дополнительных metrics?
-- Как определяется порядок ranked и status-only результатов, ties/ex-aequo и corrections опубликованных данных?
-- Кто утверждает и публикует event/result, и какие source documents обязательны?
+1. Формат внутренних FEM-кодов.
+2. Первый Excel-шаблон.
+3. Обязательные колонки импорта.
+4. Список официальных `ResultStatus`.
+5. Правила архивации и восстановления.
+6. Нужен ли UI истории изменений.
+7. Кто имеет роли администратора и редактора.
+8. Где размещается рабочая PostgreSQL.
+9. Политика backup и восстановления.
+10. Какие персональные поля допустимы.
 
-## Rankings
+## Отдельное решение по категориям
 
-- Какие ranking definitions, disciplines и subject types официально поддерживаются?
-- Как определяются period, cutoff, season, rolling window и timezone?
-- Какова утверждённая formula, precision, rounding, coefficients, eligibility, tie-breaking и dropped-result policy?
-- Как выбирается comparison snapshot и обрабатываются late results, corrections, withdrawal и supersession?
-- Допустима ли публикация imported snapshot без известной формулы источника?
-- Какие ranking fields и source provenance являются публичными?
-- Нужен ли криптографический hash/signature frozen configuration и source dataset?
+Для demo применяется `CompetitionClass.category/level`. Отдельная сущность
+категории создаётся только если FEM подтвердит:
+
+- официальный справочник;
+- уникальные коды;
+- переиспользование между соревнованиями;
+- иерархию;
+- правила архивирования;
+- необходимость отдельного управления.

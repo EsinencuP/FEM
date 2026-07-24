@@ -46,4 +46,20 @@ export class DisciplinesController {
   ): ReturnType<DisciplinesService['restore']> {
     return this.service.restore(id);
   }
+
+  @Patch(':id/publish')
+  @ApiOperation({ summary: 'Publish a discipline for the Public API' })
+  publish(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+  ): ReturnType<DisciplinesService['publish']> {
+    return this.service.publish(id);
+  }
+
+  @Patch(':id/withdraw')
+  @ApiOperation({ summary: 'Withdraw a discipline from the Public API' })
+  withdraw(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+  ): ReturnType<DisciplinesService['withdraw']> {
+    return this.service.withdraw(id);
+  }
 }

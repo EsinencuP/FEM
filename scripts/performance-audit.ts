@@ -21,7 +21,7 @@ function requiredAt(values: string[], index: number): string {
 async function createFixtures(): Promise<void> {
   const disciplineId = randomUUID();
   const clubIds = Array.from({ length: 100 }, () => randomUUID());
-  const athleteIds = Array.from({ length: 1_000 }, () => randomUUID());
+  const athleteIds = Array.from({ length: 50_000 }, () => randomUUID());
   const horseIds = Array.from({ length: 1_000 }, () => randomUUID());
   const eventIds = Array.from({ length: 100 }, () => randomUUID());
   const classIds = Array.from({ length: 1_000 }, () => randomUUID());
@@ -123,6 +123,7 @@ async function createFixtures(): Promise<void> {
 }
 
 async function measure(): Promise<void> {
+  await prisma.$executeRawUnsafe('ANALYZE "Athlete"');
   const listStart = process.hrtime.bigint();
   const results = await prisma.competitionResult.findMany({
     where: {
@@ -151,17 +152,36 @@ async function measure(): Promise<void> {
 
   const searchStart = process.hrtime.bigint();
   const search = await prisma.athlete.findMany({
-    where: { displayName: { contains: `${prefix} Athlete 09`, mode: 'insensitive' } },
+    where: { displayName: { contains: '9999', mode: 'insensitive' } },
     take: 20,
     orderBy: [{ displayName: 'asc' }, { id: 'asc' }],
     select: { id: true, displayName: true },
   });
   const searchMs = elapsedMs(searchStart);
+  const searchPlanRows = await prisma.$queryRaw<{ 'QUERY PLAN': string }[]>`
+    EXPLAIN (ANALYZE, BUFFERS)
+    SELECT "id"
+    FROM "Athlete"
+    WHERE "displayName" ILIKE ${'%9999%'}
+    LIMIT 20
+  `;
+  const searchPlan = searchPlanRows.map((row) => row['QUERY PLAN']).join('\n');
+  const forcedSearchPlanRows = await prisma.$transaction(async (transaction) => {
+    await transaction.$executeRawUnsafe('SET LOCAL enable_seqscan = off');
+    return transaction.$queryRaw<{ 'QUERY PLAN': string }[]>`
+      EXPLAIN (ANALYZE, BUFFERS)
+      SELECT "id"
+      FROM "Athlete"
+      WHERE "displayName" ILIKE ${'%9999%'}
+      LIMIT 20
+    `;
+  });
+  const forcedSearchPlan = forcedSearchPlanRows.map((row) => row['QUERY PLAN']).join('\n');
 
   process.stdout.write(
     `${JSON.stringify({
       fixtureCounts: {
-        athletes: 1_000,
+        athletes: 50_000,
         horses: 1_000,
         clubs: 100,
         events: 100,
@@ -174,6 +194,12 @@ async function measure(): Promise<void> {
         athleteSearchMs: Number(searchMs.toFixed(2)),
         resultPayloadBytes: Buffer.byteLength(JSON.stringify(results)),
         searchRows: search.length,
+        athleteSearchUsesTrigramIndex: /(?:Bitmap|Index) (?:Heap|Scan)/u.test(searchPlan),
+        athleteSearchPlan: searchPlan.split('\n')[0] ?? 'unavailable',
+        forcedAthleteSearchUsesTrigramIndex: /(?:Bitmap|Index) (?:Heap|Scan)/u.test(
+          forcedSearchPlan,
+        ),
+        forcedAthleteSearchPlan: forcedSearchPlan.split('\n')[0] ?? 'unavailable',
       },
     })}\n`,
   );

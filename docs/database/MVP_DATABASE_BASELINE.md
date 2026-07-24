@@ -6,6 +6,14 @@
 - Predecessor: `20260722201238_initial_database_v1`
 - Schema/migration drift: none
 
+> Historical domain baseline note: Release Program Stage 2 adds seven
+> security/reliability tables (`UserCredential`, `AdminSession`,
+> `AdminRecoveryCode`, `RateLimitBucket`, `IdempotencyRecord`, `Permission`,
+> `RolePermission`) and optimistic `version` columns through separate additive
+> migrations. The domain model and ranking boundaries in this document are not
+> reinterpreted. Current security details are in
+> `docs/delivery/ADMIN_API_SECURITY.md`.
+
 ## Approved models and tables
 
 System/governance: `User`, `Role`, `UserRole`, `AuditLog`, `ImportBatch`, `ImportRow`, `MediaFile`, `Document`, `ExternalIdentifier`.
@@ -18,7 +26,9 @@ Competitions: `CompetitionEvent`, `CompetitionClass`, `CompetitionResult`, `Resu
 
 Rankings: `RankingDefinition`, `RankingRuleSet`, `RankingPeriod`, `RankingSnapshot`, `RankingEntry`, `RankingEntryResult`.
 
-There are 30 application tables. `_prisma_migrations` is Prisma infrastructure and is not an application model.
+The domain baseline contains 30 application tables. The current Stage 2 schema
+contains 37 application/technical tables. `_prisma_migrations` is Prisma
+infrastructure and is not an application model.
 
 ## Key relationships
 

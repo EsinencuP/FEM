@@ -66,6 +66,18 @@ export class HorsesController {
     return this.service.restore(id);
   }
 
+  @Patch(':id/publish')
+  @ApiOperation({ summary: 'Publish a validated horse profile for the Public API' })
+  publish(@Param('id', uuidPipe()) id: string): ReturnType<HorsesService['publish']> {
+    return this.service.publish(id);
+  }
+
+  @Patch(':id/withdraw')
+  @ApiOperation({ summary: 'Withdraw a horse profile from the Public API' })
+  withdraw(@Param('id', uuidPipe()) id: string): ReturnType<HorsesService['withdraw']> {
+    return this.service.withdraw(id);
+  }
+
   @Get(':id/owners')
   owners(
     @Param('id', uuidPipe()) id: string,

@@ -30,9 +30,7 @@ const corsOriginsSchema = z
     }
   });
 
-const booleanStringSchema = z
-  .enum(['true', 'false'])
-  .transform((value) => value === 'true');
+const booleanStringSchema = z.enum(['true', 'false']).transform((value) => value === 'true');
 
 export const environmentSchema = z
   .object({
@@ -69,12 +67,7 @@ export const environmentSchema = z
     RATE_LIMIT_PUBLIC_PER_MINUTE: z.coerce.number().int().min(1).max(100_000).default(600),
     RATE_LIMIT_SEARCH_PER_MINUTE: z.coerce.number().int().min(1).max(100_000).default(120),
     RATE_LIMIT_FILES_PER_MINUTE: z.coerce.number().int().min(1).max(100_000).default(60),
-    RATE_LIMIT_INTEGRATIONS_PER_MINUTE: z.coerce
-      .number()
-      .int()
-      .min(1)
-      .max(100_000)
-      .default(300),
+    RATE_LIMIT_INTEGRATIONS_PER_MINUTE: z.coerce.number().int().min(1).max(100_000).default(300),
     SWAGGER_ENABLED: booleanStringSchema.default(true),
     SWAGGER_USERNAME: z.string().trim().min(1).optional(),
     SWAGGER_PASSWORD: z.string().min(16).optional(),

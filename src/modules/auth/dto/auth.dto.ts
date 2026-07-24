@@ -7,7 +7,10 @@ const otpSchema = z.string().regex(/^\d{6}$/, 'otp must contain exactly six digi
 export class LoginDto {
   static readonly schema = z
     .object({
-      email: z.email().max(254).transform((value) => value.toLowerCase()),
+      email: z
+        .email()
+        .max(254)
+        .transform((value) => value.toLowerCase()),
       password: z.string().min(1).max(200),
       otp: otpSchema.optional(),
       recoveryCode: z.string().trim().min(8).max(64).optional(),

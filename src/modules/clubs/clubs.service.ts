@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { ConflictException, Injectable } from '@nestjs/common';
 import type { Club, Prisma } from '@prisma/client';
 import { assertActiveRecord } from '../../common/database/archive-policy';
 import { validateReferenceStates } from '../../common/database/reference-policy';
@@ -10,6 +10,13 @@ import {
   type ListResponse,
 } from '../../common/dto/api-response';
 import { archivedAtFilter, paginationArgs } from '../../common/pagination/pagination.dto';
+import {
+  assertProfileMutable,
+  assertProfilePublishable,
+  assertProfileWithdrawable,
+  profilePublishData,
+} from '../../common/publication/profile-publication';
+import { publicClubDependenciesWhere } from '../../common/publication/public-visibility';
 import { PrismaService } from '../../database/prisma.service';
 import type { ClubListQueryDto, CreateClubDto, UpdateClubDto } from './dto/club.dto';
 
@@ -108,6 +115,7 @@ export class ClubsService {
     return withSerializableTransaction(this.prisma, async (transaction) => {
       const current = await transaction.club.findUniqueOrThrow({ where: { id } });
       assertActiveRecord(current, 'club');
+      assertProfileMutable(current, 'club');
       const [country, federation] = await Promise.all([
         dto.countryId
           ? transaction.country.findUnique({
@@ -140,6 +148,45 @@ export class ClubsService {
         await transaction.club.update({ where: { id }, data: { archivedAt: new Date() } }),
       ),
     );
+  }
+  async publish(id: string): Promise<DataResponse<Club>> {
+    return withSerializableTransaction(this.prisma, async (transaction) => {
+      const current = await transaction.club.findUniqueOrThrow({ where: { id } });
+      assertActiveRecord(current, 'club');
+      assertProfilePublishable(current, 'club');
+
+      const now = new Date();
+      const dependenciesArePublic = await transaction.club.findFirst({
+        where: { AND: [{ id }, publicClubDependenciesWhere(now)] },
+        select: { id: true },
+      });
+      if (!dependenciesArePublic) {
+        throw new ConflictException({
+          message: 'Club publication dependencies are not publicly visible',
+          code: 'PUBLICATION_DEPENDENCY_INVALID',
+        });
+      }
+
+      return dataResponse(
+        await transaction.club.update({
+          where: { id },
+          data: profilePublishData(current),
+        }),
+      );
+    });
+  }
+  async withdraw(id: string): Promise<DataResponse<Club>> {
+    return withSerializableTransaction(this.prisma, async (transaction) => {
+      const current = await transaction.club.findUniqueOrThrow({ where: { id } });
+      assertActiveRecord(current, 'club');
+      assertProfileWithdrawable(current, 'club');
+      return dataResponse(
+        await transaction.club.update({
+          where: { id },
+          data: { publicationStatus: 'WITHDRAWN' },
+        }),
+      );
+    });
   }
   async restore(id: string): Promise<DataResponse<Club>> {
     return withSerializableTransaction(this.prisma, async (transaction) => {

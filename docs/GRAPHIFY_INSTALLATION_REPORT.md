@@ -1,7 +1,11 @@
 # Graphify installation report
 
-Дата: 2026-07-23  
-Репозиторий: `C:\Users\User.DESKTOP\Documents\Web\FEM`  
+Дата установки: 2026-07-23
+
+Последнее обновление графа: 2026-07-24
+
+Репозиторий: `C:\Users\User.DESKTOP\Documents\Web\FEM`
+
 Итоговый статус: **READY WITH LIMITATIONS**
 
 ## 1. Окружение и установка
@@ -81,7 +85,7 @@ ignore-negation. В графе подтверждено ноль source paths и
 `POSTGRES_PASSWORD` и `DATABASE_URL` из локального `.env` отсутствуют в
 `graph.json`, `GRAPH_REPORT.md` и `graph.html`.
 
-## 4. Первый граф
+## 4. Актуальный граф
 
 Первый обычный вызов:
 
@@ -97,19 +101,29 @@ graphify extract . --code-only --force
 graphify cluster-only .
 ```
 
-Результат:
+Первый локальный graph был построен через code-only fallback. После обновления
+backend и замены комплекта проектной документации выполнено полное безопасное
+обновление:
 
-| Метрика                      | Значение |
-| ---------------------------- | -------: |
-| Файлы в итоговом corpus      |      105 |
-| Code files                   |       60 |
-| Markdown files               |       45 |
-| Узлы                         |     1093 |
-| Связи                        |     1610 |
-| Сообщества                   |       64 |
-| Inferred edges               |        3 |
-| Import cycles                |        0 |
-| Isolated/weak nodes в отчёте |      559 |
+```powershell
+graphify update . --force
+```
+
+`--force` использован обоснованно: из corpus были удалены две дублирующие копии
+документов, а Graphify без этого флага защищает существующий граф от
+непреднамеренного уменьшения.
+
+Актуальный результат:
+
+| Метрика        | Значение |
+| -------------- | -------: |
+| Файлы corpus   |      264 |
+| Примерно слов  |  211 932 |
+| Узлы           |     2413 |
+| Связи          |     5088 |
+| Сообщества     |      160 |
+| Inferred edges |       24 |
+| Import cycles  |        0 |
 
 Основные файлы:
 
@@ -122,25 +136,30 @@ graphify cluster-only .
 `graph.json` успешно разобран как JSON. `GRAPH_REPORT.md` не пуст. `graph.html`
 успешно отрендерен в headless Microsoft Edge с exit code 0.
 
-После начального code-only build официальная команда `graphify update .`
-добавила структурные Markdown-узлы без LLM и обновила итог до 1093 узлов. Это
-не равно семантическому извлечению: связи документов основаны на структуре и
-явных упоминаниях.
+`graph.json` успешно разобран как JSON. В актуальном графе отсутствуют удалённые
+дубли `docs/FEM_MVP_ACCELERATED_PLAN.md` и
+`docs/DOCS_REPLACEMENT_MAP.md`; канонические версии находятся в корне
+репозитория. Новые документы DB-first demo распознаны как отдельные узлы.
+
+Обновление выполнено без Gemini backend и с нулевой стоимостью LLM-токенов.
+Код, SQL и явная структура Markdown проиндексированы, но глубокие семантические
+связи документов остаются ограниченными. Ранее опубликованный в чате ключ не
+использовался и не сохранялся; его следует отозвать и заменить.
 
 ## 5. Ключевые узлы и подсистемы
 
-Основные god nodes итогового графа:
+Основные god nodes актуального графа:
 
-1. `dataResponse` — 39 связей;
-2. `PrismaService` — 29;
-3. `compilerOptions` — 29;
-4. `Frontend Anti-patterns` — 23;
-5. `AthletesController` — 22;
-6. `AthletesService` — 22;
-7. package `scripts` — 21;
-8. `Ranking Engine Boundaries` — 16;
-9. `AppConfigService` — 15;
-10. `ClubsController` — 15.
+1. `dataResponse` — 101 связь;
+2. `withSerializableTransaction()` — 99;
+3. `PrismaService` — 77;
+4. `AppConfigService` — 59;
+5. `listResponse` — 41;
+6. `paginationArgs()` — 41;
+7. `AthletesService` — 41;
+8. `Defect Register` — 41;
+9. `HorsesService` — 40;
+10. `AuthService` — 36.
 
 Распознаны подсистемы:
 
@@ -150,10 +169,13 @@ graphify cluster-only .
 - Zod validation;
 - pagination и archive filters;
 - `PrismaService` и database module;
-- countries, disciplines, clubs, owners, athletes;
+- countries, disciplines, clubs, owners, athletes и horses;
+- competitions, competition classes и competition results;
+- Admin authentication, permissions, sessions и rate limiting;
+- существующий Public API и publication workflow;
 - external identifiers;
 - seed, Jest tests и TypeScript/tooling configuration;
-- обе SQL migrations после подключения официального SQL extra.
+- 17 SQL migrations после подключения официального SQL extra;
 - архитектурные, database и delivery Markdown-документы как структурные узлы.
 
 `PrismaService` является естественным центральным database gateway, а
@@ -175,19 +197,23 @@ graphify cluster-only .
 - Центральность `compilerOptions` и package `scripts` является артефактом
   индексирования конфигурации, а не признаком доменной связанности.
 
-В Prisma migrations представлены Horse, CompetitionEvent, CompetitionClass,
-CompetitionResult, ResultMetric, ranking и системные таблицы, но в `src/modules`
-сейчас есть только:
+Граф подтверждает, что первоначальный разрыв между Prisma schema и API закрыт:
+Horse, CompetitionEvent, CompetitionClass, CompetitionResult и ResultMetric
+представлены соответствующими vertical slices. Активный план первого demo
+использует защищённый Admin API; уже существующий Public API сохраняется и
+регрессионно проверяется, но не расширяется в рамках DB-first demo.
 
-- athletes;
-- clubs;
-- countries;
-- disciplines;
-- external-identifiers;
-- owners.
+После Этапов 4–7 граф также распознал `apps/demo-web`: `apiRequest()` имеет 20
+связей и является ожидаемым consumer hotspot для auth, lookups и шести
+resource pages. EXTRACTED imports подтверждают единый API client. Автоматический
+path от `CompetitionDetailPage` до backend controller прошёл через
+`INFERRED` generic error/transaction nodes, поэтому этот путь не использовался
+как доказательство runtime-вызова; фактические `/admin/*` paths подтверждены
+чтением source и browser network/runtime QA.
 
-Следовательно, база существенно шире текущего API. Horse и competition/result
-vertical slices являются основными пробелами следующего backend-аудита.
+`withSerializableTransaction()` является новым cross-community hotspot. Это
+ожидаемо для защиты конкурентных операций, но любые изменения transaction
+helper требуют повторной проверки athlete, horse, competition и result flows.
 
 Документационные связи нельзя оценить полностью: Markdown вошёл как
 структурный, но не как LLM-semantic layer. Нельзя делать вывод, что API не
@@ -195,16 +221,16 @@ vertical slices являются основными пробелами след�
 
 ## 7. CLI-проверки
 
-| Команда                                   | Результат                                                        |
-| ----------------------------------------- | ---------------------------------------------------------------- |
-| `graphify explain "PrismaService"`        | успешно, 29 связей                                               |
-| `graphify explain "CompetitionResult"`    | успешно после SQL extra, 9 связей                                |
-| query про athlete/horse results           | частично: найден Athlete API; competition/result API отсутствует |
-| query про archive/restore                 | успешно после vocabulary expansion                               |
-| query про validation errors               | успешно: Zod pipe и exception filter найдены                     |
-| path CompetitionEvent → CompetitionResult | 2 hops через document container; ambiguous-match warning         |
-| path Athlete → CompetitionResult          | 4 hops через DATA_DICTIONARY; ambiguous-match warning            |
-| path Horse → CompetitionResult            | 4 hops через DATA_DICTIONARY; ambiguous-match warning            |
+| Команда                                   | Результат                                                     |
+| ----------------------------------------- | ------------------------------------------------------------- |
+| `graphify explain "PrismaService"`        | успешно; актуальный god node с 77 связями                     |
+| `graphify explain "CompetitionResult"`    | успешно; SQL и API-представление распознаны                   |
+| query про Admin API DB-first demo         | успешно; найдены controllers, services и delivery-документы   |
+| query про archive/restore                 | успешно после vocabulary expansion                            |
+| query про validation errors               | успешно: Zod pipe и exception filter найдены                  |
+| path CompetitionEvent → CompetitionResult | найден; одноимённые schema/doc nodes требуют проверки в коде  |
+| path Athlete → CompetitionResult          | найден; runtime flow подтверждается service и Prisma relation |
+| path Horse → CompetitionResult            | найден; runtime flow подтверждается service и Prisma relation |
 
 `explain CompetitionResult` отдельно подтвердил SQL references к Athlete,
 Horse, CompetitionClass, ResultStatus, Document и User. Автоматический `path`
@@ -223,19 +249,27 @@ cache/backups, имеет нестабильные generated diff и уже до
 
 ## 9. Проверки backend
 
-Проверки выполнялись в Node.js `22.23.1` и pnpm `11.9.0`.
+Полный подтверждённый gate перед заменой документов выполнялся в Node.js
+`22.23.1`:
 
-| Проверка         | Результат                                                     |
-| ---------------- | ------------------------------------------------------------- |
-| `pnpm lint`      | FAIL: 109 ошибок в существующих незавершённых CRUD-заготовках |
-| `pnpm typecheck` | FAIL: 6 TypeScript errors                                     |
-| `pnpm test`      | PASS: 3 suites, 6 tests                                       |
-| `pnpm build`     | FAIL: те же strict TypeScript errors                          |
+| Проверка                | Результат                              |
+| ----------------------- | -------------------------------------- |
+| Prisma format/validate  | PASS                                   |
+| Prisma generate         | PASS                                   |
+| `pnpm lint`             | PASS                                   |
+| `pnpm typecheck`        | PASS                                   |
+| `pnpm test`             | PASS: 10 suites, 70 tests              |
+| database tests          | PASS: 2 suites, 28 tests               |
+| `pnpm test:e2e`         | PASS: 12 suites, 85 tests              |
+| `pnpm build`            | PASS                                   |
+| OpenAPI snapshot/check  | PASS: 125 operations                   |
+| restricted runtime role | PASS: health/public/admin/docs policy  |
+| demo-web gate           | PASS: lint, strict TS, 11 tests, build |
 
-Основные существующие причины: отсутствующий прямой тип `express`, Prisma where
-objects с optional `undefined` при `exactOptionalPropertyTypes`, отсутствующие
-explicit return types. Они присутствовали в рабочем дереве до установки
-Graphify и не исправлялись в этой задаче.
+После текущего документационного обновления минимальный gate
+`lint/typecheck/test/build` запускается повторно; его фактический результат
+фиксируется в `docs/delivery/CURRENT_QUALITY_STATUS.md` и
+`docs/progress/CHANGELOG_AI.md`.
 
 ## 10. Ограничения и статус
 
@@ -244,7 +278,7 @@ Graphify и не исправлялись в этой задаче.
 - Три JSON-конфига не дали узлов.
 - Community labels остались техническими hub-именами без LLM labeling.
 - Прямой `codex --version` заблокирован Windows ACL текущего desktop package.
-- Backend quality gate уже был красным до Graphify и остаётся красным.
+- Graphify не заменяет чтение кода, SQL-аудит или выполнение тестов.
 
 Graphify установлен, project-scoped skill работает, локальная карта кода и SQL
 migrations построена, результаты безопасно исключены из Git. Итог:

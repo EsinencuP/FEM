@@ -1,12 +1,12 @@
-# Database v1 Data Dictionary
+# Database v1 + Admin Security Data Dictionary
 
-- Status: audited MVP database baseline
-- Baseline migration: `20260722204033_mvp_database_stabilization` (after `20260722201238_initial_database_v1`)
+- Status: Database v1 audited; Stage 2 security extension gate pending
+- Latest migration: `20260724104500_admin_permissions`
 - PostgreSQL: 16
 - ORM: Prisma 6
 - Legend: `R` required, `N` nullable, `U` unique, `P` provisional semantics
 
-All `id` fields are internal UUID primary keys. Unless noted, mutable entities include `createdAt timestamptz`, `updatedAt timestamptz`; archived entities include nullable `archivedAt timestamptz`. Calendar dates use PostgreSQL `date`. Official/external numbers are stored only in `ExternalIdentifier` and never generated.
+All `id` fields are internal UUID primary keys. Unless noted, mutable entities include `createdAt timestamptz`, `updatedAt timestamptz`; archived entities include nullable `archivedAt timestamptz`. Admin-mutable domain entities additionally expose positive integer `version` for optimistic concurrency. Calendar dates use PostgreSQL `date`. Official/external numbers are stored only in `ExternalIdentifier` and never generated.
 
 ## Internal enums
 
@@ -24,11 +24,22 @@ All `id` fields are internal UUID primary keys. Unless noted, mutable entities i
 
 ### User
 
-`email` R/U normalized technical email; `displayName` R; `status` R; `isDemo` R; `archivedAt` N; timestamps. Passwords/tokens are absent.
+`email` R/U normalized technical email; `displayName` R; `status` R; `isDemo` R; `archivedAt` N; timestamps. Passwords and factors are stored only in the dedicated credential/security tables below.
 
 ### Role
 
-`code` R/U normalized technical key; `name` R; `description` N; `isSystem` R; `isDemo` R; `archivedAt` N; timestamps. Permissions are not defined in v1.
+`code` R/U normalized technical key; `name` R; `description` N; `isSystem` R; `isDemo` R; `archivedAt` N; timestamps.
+
+### Permission
+
+`code` R/U stable technical key; `name` R; `description` N; `isSystem` R;
+`archivedAt` N; timestamps. Stage 2 system values are `ADMIN_READ`,
+`ADMIN_WRITE`, `AUDIT_READ`, `SECURITY_SELF` and `VERSION_OVERRIDE`.
+
+### RolePermission
+
+`roleId` R FK; `permissionId` R FK; `createdAt` R. The pair is unique. Both
+foreign keys use `RESTRICT`.
 
 ### UserRole
 
@@ -36,7 +47,36 @@ All `id` fields are internal UUID primary keys. Unless noted, mutable entities i
 
 ### AuditLog
 
-`actorId` N FK; `action` R; `entityType` R; `entityId` R UUID; `oldData` N JSONB; `newData` N JSONB; `reason` N; `requestId` N; `createdAt` R. Append-only by policy; polymorphic target integrity is application-enforced. Secrets and unredacted sensitive data are prohibited.
+`actorId` N FK; `sessionId` N FK; `action` R; `entityType` R; `entityId` R UUID; `oldData` N JSONB; `newData` N JSONB; `reason` N; `requestId` N; `createdAt` R. PostgreSQL rejects update/delete/truncate; polymorphic target integrity is application-enforced. Secrets and unredacted sensitive data are prohibited.
+
+### UserCredential
+
+`userId` R PK/FK; `passwordHash` R Argon2id; `totpSecretEncrypted` R;
+`twoFactorEnabledAt` R; `failedLoginAttempts` R; `lockedUntil` N;
+`passwordChangedAt` R; `lastTotpStep` N; timestamps. Plaintext credentials are
+never persisted.
+
+### AdminSession
+
+`id` R UUID; `userId` R FK; current and previous token hashes; CSRF token hash;
+second-factor method; rotation/pending-re-enrollment timestamps; absolute/idle
+expiry; last seen; optional revocation reason, bounded IP and user agent;
+timestamps. Token hashes are unique and user deletion is restricted.
+
+### AdminRecoveryCode
+
+`id` R UUID; `userId` R FK; `codeHash` R/U; `usedAt` N; `createdAt` R.
+
+### RateLimitBucket
+
+Technical key R PK; throttler name, window start/expiry, total hits, optional
+blocked-until and update timestamp. It contains no credential or request body.
+
+### IdempotencyRecord
+
+Deterministic hash ID R PK; actor/session R FKs; client key, method/path,
+request hash, response status/body, expiry and creation timestamp. It is
+security/reliability evidence and uses restrictive FKs.
 
 ### ImportBatch
 

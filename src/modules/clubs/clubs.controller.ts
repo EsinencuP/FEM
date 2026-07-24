@@ -45,6 +45,16 @@ export class ClubsController {
   ): ReturnType<ClubsService['restore']> {
     return this.service.restore(id);
   }
+  @Patch(':id/publish')
+  @ApiOperation({ summary: 'Publish a validated club profile for the Public API' })
+  publish(@Param('id', uuidPipe()) id: string): ReturnType<ClubsService['publish']> {
+    return this.service.publish(id);
+  }
+  @Patch(':id/withdraw')
+  @ApiOperation({ summary: 'Withdraw a club profile from the Public API' })
+  withdraw(@Param('id', uuidPipe()) id: string): ReturnType<ClubsService['withdraw']> {
+    return this.service.withdraw(id);
+  }
   @Get(':id/identifiers') identifiersList(
     @Param('id', uuidPipe()) id: string,
     @Query() query: PaginationQueryDto,

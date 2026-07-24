@@ -5,9 +5,7 @@ const HTTP_METHODS = ['get', 'post', 'put', 'patch', 'delete', 'options', 'head'
 type PathItem = OpenAPIObject['paths'][string];
 type PathOperation = NonNullable<PathItem['get']>;
 type ApiResponse = NonNullable<PathOperation['responses'][string]>;
-type ComponentSchema = NonNullable<
-  NonNullable<OpenAPIObject['components']>['schemas']
->[string];
+type ComponentSchema = NonNullable<NonNullable<OpenAPIObject['components']>['schemas']>[string];
 
 const LIST_OPERATION_METHODS = new Set([
   'list',
@@ -72,11 +70,10 @@ function resourceSchema(
   required: string[],
 ): ComponentSchema {
   const effectiveRequired =
-    'version' in properties && !required.includes('version')
-      ? [...required, 'version']
-      : required;
+    'version' in properties && !required.includes('version') ? [...required, 'version'] : required;
   return {
     type: 'object',
+    additionalProperties: false,
     required: effectiveRequired,
     properties,
     description:
@@ -107,8 +104,19 @@ function registerResourceSchemas(document: OpenAPIObject): void {
       isoAlpha2: { type: 'string', minLength: 2, maxLength: 2 },
       isoAlpha3: { type: 'string', minLength: 3, maxLength: 3 },
       name: stringSchema,
+      publicationStatus: publicationSchema,
+      publishedAt: dateTimeSchema,
     },
-    ['id', 'isoAlpha2', 'isoAlpha3', 'name', 'isDemo', 'createdAt', 'updatedAt'],
+    [
+      'id',
+      'isoAlpha2',
+      'isoAlpha3',
+      'name',
+      'publicationStatus',
+      'isDemo',
+      'createdAt',
+      'updatedAt',
+    ],
   );
   schemas.Discipline = resourceSchema(
     {
@@ -117,8 +125,10 @@ function registerResourceSchemas(document: OpenAPIObject): void {
       name: stringSchema,
       description: nullableStringSchema,
       status: statusSchema,
+      publicationStatus: publicationSchema,
+      publishedAt: dateTimeSchema,
     },
-    ['id', 'code', 'name', 'status', 'isDemo', 'createdAt', 'updatedAt'],
+    ['id', 'code', 'name', 'status', 'publicationStatus', 'isDemo', 'createdAt', 'updatedAt'],
   );
   schemas.Club = resourceSchema(
     {
@@ -128,14 +138,13 @@ function registerResourceSchemas(document: OpenAPIObject): void {
       countryId: { ...uuidSchema, nullable: true },
       nationalFederationId: { ...uuidSchema, nullable: true },
       status: statusSchema,
+      publicationStatus: publicationSchema,
+      publishedAt: dateTimeSchema,
       country: nullableRef('CountrySummary'),
       nationalFederation: nullableRef('NationalFederationSummary'),
-      _count: resourceSchema(
-        { memberships: { type: 'integer', minimum: 0 } },
-        ['memberships'],
-      ),
+      _count: resourceSchema({ memberships: { type: 'integer', minimum: 0 } }, ['memberships']),
     },
-    ['id', 'name', 'status', 'isDemo', 'createdAt', 'updatedAt'],
+    ['id', 'name', 'status', 'publicationStatus', 'isDemo', 'createdAt', 'updatedAt'],
   );
   schemas.Owner = resourceSchema(
     {
@@ -160,6 +169,8 @@ function registerResourceSchemas(document: OpenAPIObject): void {
       nationalFederationId: { ...uuidSchema, nullable: true },
       photoId: { ...uuidSchema, nullable: true },
       status: statusSchema,
+      publicationStatus: publicationSchema,
+      publishedAt: dateTimeSchema,
       country: nullableRef('CountrySummary'),
       nationalFederation: nullableRef('NationalFederationSummary'),
     },
@@ -169,6 +180,7 @@ function registerResourceSchemas(document: OpenAPIObject): void {
       'lastName',
       'displayName',
       'status',
+      'publicationStatus',
       'isDemo',
       'createdAt',
       'updatedAt',
@@ -188,9 +200,11 @@ function registerResourceSchemas(document: OpenAPIObject): void {
       studbook: nullableStringSchema,
       imageId: { ...uuidSchema, nullable: true },
       status: statusSchema,
+      publicationStatus: publicationSchema,
+      publishedAt: dateTimeSchema,
       countryOfBirth: nullableRef('CountrySummary'),
     },
-    ['id', 'displayName', 'status', 'isDemo', 'createdAt', 'updatedAt'],
+    ['id', 'displayName', 'status', 'publicationStatus', 'isDemo', 'createdAt', 'updatedAt'],
   );
   schemas.CompetitionEvent = resourceSchema(
     {
@@ -302,15 +316,7 @@ function registerResourceSchemas(document: OpenAPIObject): void {
       createdAt: { type: 'string', format: 'date-time' },
       updatedAt: { type: 'string', format: 'date-time' },
     },
-    [
-      'id',
-      'competitionResultId',
-      'metricCode',
-      'sortOrder',
-      'isDemo',
-      'createdAt',
-      'updatedAt',
-    ],
+    ['id', 'competitionResultId', 'metricCode', 'sortOrder', 'isDemo', 'createdAt', 'updatedAt'],
   );
   schemas.ExternalIdentifier = resourceSchema(
     {
@@ -475,14 +481,189 @@ function registerResourceSchemas(document: OpenAPIObject): void {
       },
       isPrimary: { type: 'boolean' },
     },
-    [
-      'id',
-      'identifierType',
-      'namespace',
-      'value',
-      'verificationStatus',
-      'isPrimary',
+    ['id', 'identifierType', 'namespace', 'value', 'verificationStatus', 'isPrimary'],
+  );
+  schemas.CurrentClubProjection = resourceSchema(
+    {
+      id: uuidSchema,
+      membershipType: nullableStringSchema,
+      startDate: { type: 'string', format: 'date-time' },
+      endDate: dateSchema,
+      club: ref('ClubSummary'),
+    },
+    ['id', 'startDate', 'club'],
+  );
+  schemas.AthleteListItem = {
+    allOf: [
+      ref('Athlete'),
+      {
+        type: 'object',
+        required: ['currentClubs', 'primaryIdentifier'],
+        properties: {
+          currentClubs: arrayOf('CurrentClubProjection'),
+          primaryIdentifier: nullableRef('ExternalIdentifierSummary'),
+        },
+      },
     ],
+  };
+  schemas.HorseListItem = {
+    allOf: [
+      ref('Horse'),
+      {
+        type: 'object',
+        required: ['primaryIdentifier'],
+        properties: {
+          primaryIdentifier: nullableRef('ExternalIdentifierSummary'),
+        },
+      },
+    ],
+  };
+  schemas.PublicCountry = resourceSchema(
+    {
+      id: uuidSchema,
+      isoAlpha2: { type: 'string', minLength: 2, maxLength: 2 },
+      isoAlpha3: { type: 'string', minLength: 3, maxLength: 3 },
+      name: stringSchema,
+    },
+    ['id', 'isoAlpha2', 'isoAlpha3', 'name'],
+  );
+  schemas.PublicNationalFederation = resourceSchema(
+    {
+      id: uuidSchema,
+      name: stringSchema,
+      shortName: nullableStringSchema,
+      websiteUrl: { type: 'string', format: 'uri', nullable: true },
+      country: ref('PublicCountry'),
+    },
+    ['id', 'name', 'country'],
+  );
+  schemas.PublicDiscipline = resourceSchema(
+    {
+      id: uuidSchema,
+      code: stringSchema,
+      name: stringSchema,
+      description: nullableStringSchema,
+    },
+    ['id', 'code', 'name'],
+  );
+  schemas.PublicClub = resourceSchema(
+    {
+      id: uuidSchema,
+      name: stringSchema,
+      country: nullableRef('PublicCountry'),
+      nationalFederation: nullableRef('PublicNationalFederation'),
+    },
+    ['id', 'name', 'country', 'nationalFederation'],
+  );
+  schemas.PublicAthlete = resourceSchema(
+    {
+      id: uuidSchema,
+      firstName: stringSchema,
+      lastName: stringSchema,
+      displayName: stringSchema,
+      country: nullableRef('PublicCountry'),
+      nationalFederation: nullableRef('PublicNationalFederation'),
+    },
+    ['id', 'firstName', 'lastName', 'displayName', 'country', 'nationalFederation'],
+  );
+  schemas.PublicHorse = resourceSchema(
+    {
+      id: uuidSchema,
+      passportName: nullableStringSchema,
+      displayName: stringSchema,
+      birthYear: { type: 'integer', nullable: true },
+      sex: nullableStringSchema,
+      breed: nullableStringSchema,
+      color: nullableStringSchema,
+      studbook: nullableStringSchema,
+      countryOfBirth: nullableRef('PublicCountry'),
+    },
+    ['id', 'displayName', 'countryOfBirth'],
+  );
+  schemas.PublicCompetition = resourceSchema(
+    {
+      id: uuidSchema,
+      slug: stringSchema,
+      title: stringSchema,
+      description: nullableStringSchema,
+      startDate: { type: 'string', format: 'date-time' },
+      endDate: { type: 'string', format: 'date-time' },
+      location: nullableStringSchema,
+      venue: nullableStringSchema,
+      organizerName: nullableStringSchema,
+      publishedAt: { type: 'string', format: 'date-time' },
+      country: nullableRef('PublicCountry'),
+    },
+    ['id', 'slug', 'title', 'startDate', 'endDate', 'publishedAt', 'country'],
+  );
+  schemas.PublicCompetitionSummary = resourceSchema(
+    {
+      id: uuidSchema,
+      slug: stringSchema,
+      title: stringSchema,
+      startDate: { type: 'string', format: 'date-time' },
+      endDate: { type: 'string', format: 'date-time' },
+    },
+    ['id', 'slug', 'title', 'startDate', 'endDate'],
+  );
+  schemas.PublicCompetitionClass = resourceSchema(
+    {
+      id: uuidSchema,
+      title: stringSchema,
+      category: nullableStringSchema,
+      level: nullableStringSchema,
+      competitionDate: dateTimeSchema,
+      sortOrder: { type: 'integer' },
+      discipline: ref('PublicDiscipline'),
+      competitionEvent: ref('PublicCompetitionSummary'),
+    },
+    ['id', 'title', 'sortOrder', 'discipline', 'competitionEvent'],
+  );
+  schemas.PublicAthleteSummary = resourceSchema({ id: uuidSchema, displayName: stringSchema }, [
+    'id',
+    'displayName',
+  ]);
+  schemas.PublicHorseSummary = resourceSchema({ id: uuidSchema, displayName: stringSchema }, [
+    'id',
+    'displayName',
+  ]);
+  schemas.PublicResultStatus = resourceSchema(
+    {
+      id: uuidSchema,
+      code: stringSchema,
+      label: stringSchema,
+      description: nullableStringSchema,
+      sortOrder: { type: 'integer' },
+    },
+    ['id', 'code', 'label', 'sortOrder'],
+  );
+  schemas.PublicResultMetric = resourceSchema(
+    {
+      metricCode: stringSchema,
+      numericValue: { type: 'string', nullable: true },
+      textValue: nullableStringSchema,
+      unit: nullableStringSchema,
+      sortOrder: { type: 'integer' },
+    },
+    ['metricCode', 'sortOrder'],
+  );
+  schemas.PublicCompetitionResult = resourceSchema(
+    {
+      id: uuidSchema,
+      rank: { type: 'integer', minimum: 1, nullable: true },
+      resultDisplay: nullableStringSchema,
+      penalties: { type: 'string', nullable: true },
+      timeSeconds: { type: 'string', nullable: true },
+      points: { type: 'string', nullable: true },
+      bonus: { type: 'string', nullable: true },
+      publishedAt: { type: 'string', format: 'date-time' },
+      competitionClass: ref('PublicCompetitionClass'),
+      athlete: ref('PublicAthleteSummary'),
+      horse: ref('PublicHorseSummary'),
+      status: nullableRef('PublicResultStatus'),
+      metrics: arrayOf('PublicResultMetric'),
+    },
+    ['id', 'publishedAt', 'competitionClass', 'athlete', 'horse', 'status', 'metrics'],
   );
   schemas.AthleteClubMembershipProjection = {
     allOf: [
@@ -552,10 +733,7 @@ function registerResourceSchemas(document: OpenAPIObject): void {
           horse: ref('HorseSummary'),
           status: nullableRef('ResultStatusSummary'),
           metrics: arrayOf('ResultMetric'),
-          _count: resourceSchema(
-            { metrics: { type: 'integer', minimum: 0 } },
-            ['metrics'],
-          ),
+          _count: resourceSchema({ metrics: { type: 'integer', minimum: 0 } }, ['metrics']),
         },
       },
     ],
@@ -590,11 +768,19 @@ function registerResourceSchemas(document: OpenAPIObject): void {
       ref('Horse'),
       {
         type: 'object',
-        required: ['countryOfBirth', 'ownerships', 'athleteRelations'],
+        required: [
+          'countryOfBirth',
+          'ownerships',
+          'athleteRelations',
+          'competitionResults',
+          'externalIdentifiers',
+        ],
         properties: {
           countryOfBirth: nullableRef('CountrySummary'),
           ownerships: arrayOf('HorseOwnershipProjection'),
           athleteRelations: arrayOf('AthleteHorseRelationProjection'),
+          competitionResults: arrayOf('CompetitionResultProjection'),
+          externalIdentifiers: arrayOf('ExternalIdentifierSummary'),
         },
       },
     ],
@@ -609,10 +795,7 @@ function registerResourceSchemas(document: OpenAPIObject): void {
           country: nullableRef('CountrySummary'),
           nationalFederation: nullableRef('NationalFederationSummary'),
           memberships: arrayOf('ClubMembershipProjection'),
-          _count: resourceSchema(
-            { memberships: { type: 'integer', minimum: 0 } },
-            ['memberships'],
-          ),
+          _count: resourceSchema({ memberships: { type: 'integer', minimum: 0 } }, ['memberships']),
         },
       },
     ],
@@ -668,10 +851,7 @@ function registerResourceSchemas(document: OpenAPIObject): void {
           horse: ref('HorseSummary'),
           status: nullableRef('ResultStatusSummary'),
           metrics: arrayOf('ResultMetric'),
-          _count: resourceSchema(
-            { metrics: { type: 'integer', minimum: 0 } },
-            ['metrics'],
-          ),
+          _count: resourceSchema({ metrics: { type: 'integer', minimum: 0 } }, ['metrics']),
         },
       },
     ],
@@ -684,9 +864,10 @@ function registerResourceSchemas(document: OpenAPIObject): void {
       email: { type: 'string', format: 'email' },
       displayName: stringSchema,
       roles: { type: 'array', items: { type: 'string' } },
+      permissions: { type: 'array', items: { type: 'string' } },
       secondFactorMethod: { type: 'string', enum: ['TOTP', 'RECOVERY'] },
     },
-    ['userId', 'sessionId', 'email', 'displayName', 'roles', 'secondFactorMethod'],
+    ['userId', 'sessionId', 'email', 'displayName', 'roles', 'permissions', 'secondFactorMethod'],
   );
   schemas.AdminSessionPublic = resourceSchema(
     {
@@ -720,12 +901,13 @@ function registerResourceSchemas(document: OpenAPIObject): void {
         properties: {
           user: {
             type: 'object',
-            required: ['id', 'email', 'displayName', 'roles'],
+            required: ['id', 'email', 'displayName', 'roles', 'permissions'],
             properties: {
               id: uuidSchema,
               email: { type: 'string', format: 'email' },
               displayName: stringSchema,
               roles: { type: 'array', items: { type: 'string' } },
+              permissions: { type: 'array', items: { type: 'string' } },
             },
           },
           session: ref('AdminSessionIssued'),
@@ -823,6 +1005,17 @@ function resourceSchemaName(
   operation: PathOperation,
   method: (typeof HTTP_METHODS)[number],
 ): string | undefined {
+  const publicPath = path.replace(/^\/[^/]+\/v1\/public\/\{lang\}\//, '/api/v1/public/');
+  if (publicPath.startsWith('/api/v1/public/countries')) return 'PublicCountry';
+  if (publicPath.startsWith('/api/v1/public/disciplines')) return 'PublicDiscipline';
+  if (publicPath.startsWith('/api/v1/public/clubs')) return 'PublicClub';
+  if (publicPath.startsWith('/api/v1/public/athletes')) return 'PublicAthlete';
+  if (publicPath.startsWith('/api/v1/public/horses')) return 'PublicHorse';
+  if (publicPath.startsWith('/api/v1/public/competitions')) return 'PublicCompetition';
+  if (publicPath.startsWith('/api/v1/public/competition-classes')) {
+    return 'PublicCompetitionClass';
+  }
+  if (publicPath.startsWith('/api/v1/public/results')) return 'PublicCompetitionResult';
   path = path.replace(/^\/[^/]+\/v1\/admin\//, '/api/v1/');
   const methodName = operationMethodName(operation);
   const isDetailRead = method === 'get' && ['get', 'getBySlug'].includes(methodName);
@@ -850,8 +1043,14 @@ function resourceSchemaName(
   if (path.startsWith('/api/v1/disciplines')) return 'Discipline';
   if (path.startsWith('/api/v1/clubs')) return isDetailRead ? 'ClubDetail' : 'Club';
   if (path.startsWith('/api/v1/owners')) return isDetailRead ? 'OwnerDetail' : 'Owner';
-  if (path.startsWith('/api/v1/athletes')) return isDetailRead ? 'AthleteDetail' : 'Athlete';
-  if (path.startsWith('/api/v1/horses')) return isDetailRead ? 'HorseDetail' : 'Horse';
+  if (path.startsWith('/api/v1/athletes')) {
+    if (methodName === 'list') return 'AthleteListItem';
+    return isDetailRead ? 'AthleteDetail' : 'Athlete';
+  }
+  if (path.startsWith('/api/v1/horses')) {
+    if (methodName === 'list') return 'HorseListItem';
+    return isDetailRead ? 'HorseDetail' : 'Horse';
+  }
   if (path.startsWith('/api/v1/competitions')) {
     return isDetailRead ? 'CompetitionEventDetail' : 'CompetitionEvent';
   }
@@ -868,6 +1067,7 @@ function applyPathParameterFormats(document: OpenAPIObject): void {
           !('$ref' in parameter) &&
           parameter.in === 'path' &&
           parameter.name !== 'slug' &&
+          parameter.name !== 'lang' &&
           parameter.schema &&
           typeof parameter.schema === 'object' &&
           !('$ref' in parameter.schema) &&
@@ -880,11 +1080,7 @@ function applyPathParameterFormats(document: OpenAPIObject): void {
   }
 }
 
-function envelopeSchemaName(
-  document: OpenAPIObject,
-  resourceName: string,
-  list: boolean,
-): string {
+function envelopeSchemaName(document: OpenAPIObject, resourceName: string, list: boolean): string {
   document.components ??= {};
   document.components.schemas ??= {};
   const suffix = list ? 'ListResponse' : 'Response';
@@ -941,12 +1137,61 @@ export function applySuccessEnvelopeSchemas(document: OpenAPIObject): OpenAPIObj
     for (const method of HTTP_METHODS) {
       const operation = pathItem[method];
       if (!operation) continue;
+      const isPublicOperation = /^\/[^/]+\/v1\/public\/\{lang\}(?:\/|$)/.test(path);
+      if (isPublicOperation) {
+        operation.security = [];
+        operation.parameters ??= [];
+        if (
+          !operation.parameters.some(
+            (parameter) =>
+              !('$ref' in parameter) &&
+              parameter.in === 'header' &&
+              parameter.name.toLowerCase() === 'if-none-match',
+          )
+        ) {
+          operation.parameters.push({
+            name: 'If-None-Match',
+            in: 'header',
+            required: false,
+            description: 'Return 304 when the supplied entity tag still matches the representation',
+            schema: { type: 'string' },
+          });
+        }
+        operation.responses['304'] ??= {
+          description: 'Not modified; the current ETag matched If-None-Match',
+          headers: {
+            ETag: { schema: { type: 'string' } },
+            'Cache-Control': { schema: { type: 'string' } },
+            'Content-Language': { schema: { type: 'string', enum: ['ro', 'ru'] } },
+          },
+        };
+      }
       const status = successStatus(operation, method);
       const existing = operation.responses[status];
       const response: ApiResponse =
         existing && !('$ref' in existing)
           ? existing
           : { description: status === '204' ? 'No content' : 'Successful response' };
+      if (isPublicOperation && !('$ref' in response)) {
+        response.headers = {
+          ...response.headers,
+          ETag: {
+            description: 'Strong entity tag for conditional revalidation',
+            schema: { type: 'string' },
+          },
+          'Cache-Control': {
+            description: 'Shared-cache policy requiring revalidation before reuse',
+            schema: {
+              type: 'string',
+              example: 'public, max-age=0, s-maxage=0, must-revalidate',
+            },
+          },
+          'Content-Language': {
+            description: 'Requested API locale',
+            schema: { type: 'string', enum: ['ro', 'ru'] },
+          },
+        };
+      }
       const hasDocumentedJsonSchema =
         !('$ref' in response) && response.content?.['application/json']?.schema !== undefined;
       if (status !== '204' && !hasDocumentedJsonSchema) {
@@ -994,6 +1239,7 @@ export function createOpenApiDocument(app: INestApplication): OpenAPIObject {
     .addTag('Competition Classes')
     .addTag('Results')
     .addTag('Audit')
+    .addTag('Public API')
     .build();
   return applySuccessEnvelopeSchemas(SwaggerModule.createDocument(app, config));
 }

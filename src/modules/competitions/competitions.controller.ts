@@ -48,6 +48,16 @@ export class CompetitionsController {
   restore(@Param('id', uuidPipe()) id: string): ReturnType<CompetitionsService['restore']> {
     return this.service.restore(id);
   }
+  @Patch(':id/publish')
+  @ApiOperation({ summary: 'Publish a validated competition for the Public API' })
+  publish(@Param('id', uuidPipe()) id: string): ReturnType<CompetitionsService['publish']> {
+    return this.service.publish(id);
+  }
+  @Patch(':id/withdraw')
+  @ApiOperation({ summary: 'Withdraw a competition from the Public API' })
+  withdraw(@Param('id', uuidPipe()) id: string): ReturnType<CompetitionsService['withdraw']> {
+    return this.service.withdraw(id);
+  }
   @Get(':id/classes')
   classes(
     @Param('id', uuidPipe()) id: string,

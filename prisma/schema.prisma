@@ -375,6 +375,8 @@ model Country {
   isoAlpha2           String               @unique @db.Char(2)
   isoAlpha3           String               @unique @db.Char(3)
   name                String
+  publicationStatus   PublicationStatus    @default(DRAFT)
+  publishedAt         DateTime?            @db.Timestamptz(3)
   isDemo              Boolean              @default(false)
   archivedAt          DateTime?            @db.Timestamptz(3)
   createdAt           DateTime             @default(now()) @db.Timestamptz(3)
@@ -385,6 +387,8 @@ model Country {
   horses              Horse[]
   owners              Owner[]
   competitions        CompetitionEvent[]
+
+  @@index([publicationStatus, archivedAt, name, id])
 }
 
 model NationalFederation {
@@ -412,6 +416,8 @@ model Discipline {
   name                  String
   description           String?
   status                RecordStatus           @default(DRAFT)
+  publicationStatus     PublicationStatus      @default(DRAFT)
+  publishedAt           DateTime?              @db.Timestamptz(3)
   isDemo                Boolean                @default(false)
   archivedAt            DateTime?              @db.Timestamptz(3)
   createdAt             DateTime               @default(now()) @db.Timestamptz(3)
@@ -419,6 +425,8 @@ model Discipline {
   athleteHorseRelations AthleteHorseRelation[]
   competitionClasses    CompetitionClass[]
   rankingDefinitions    RankingDefinition[]
+
+  @@index([publicationStatus, archivedAt, name, id])
 }
 
 model Club {
@@ -429,6 +437,8 @@ model Club {
   countryId            String?                 @db.Uuid
   nationalFederationId String?                 @db.Uuid
   status               RecordStatus            @default(DRAFT)
+  publicationStatus    PublicationStatus       @default(DRAFT)
+  publishedAt          DateTime?               @db.Timestamptz(3)
   isDemo               Boolean                 @default(false)
   archivedAt           DateTime?               @db.Timestamptz(3)
   createdAt            DateTime                @default(now()) @db.Timestamptz(3)
@@ -438,6 +448,7 @@ model Club {
   memberships          AthleteClubMembership[]
 
   @@index([name, id])
+  @@index([publicationStatus, archivedAt, name, id])
   @@index([countryId, status, archivedAt])
   @@index([nationalFederationId, archivedAt])
 }
@@ -469,6 +480,8 @@ model Athlete {
   nationalFederationId String?                 @db.Uuid
   photoId              String?                 @db.Uuid
   status               RecordStatus            @default(DRAFT)
+  publicationStatus    PublicationStatus       @default(DRAFT)
+  publishedAt          DateTime?               @db.Timestamptz(3)
   isDemo               Boolean                 @default(false)
   archivedAt           DateTime?               @db.Timestamptz(3)
   createdAt            DateTime                @default(now()) @db.Timestamptz(3)
@@ -483,6 +496,7 @@ model Athlete {
 
   @@index([lastName, firstName, id])
   @@index([displayName, id])
+  @@index([publicationStatus, archivedAt, displayName, id])
   @@index([countryId, status, archivedAt])
   @@index([nationalFederationId, archivedAt])
 }
@@ -501,6 +515,8 @@ model Horse {
   studbook           String?
   imageId            String?                @db.Uuid
   status             RecordStatus           @default(DRAFT)
+  publicationStatus  PublicationStatus      @default(DRAFT)
+  publishedAt        DateTime?              @db.Timestamptz(3)
   isDemo             Boolean                @default(false)
   archivedAt         DateTime?              @db.Timestamptz(3)
   createdAt          DateTime               @default(now()) @db.Timestamptz(3)
@@ -514,6 +530,7 @@ model Horse {
 
   @@index([displayName, id])
   @@index([passportName, id])
+  @@index([publicationStatus, archivedAt, displayName, id])
   @@index([birthYear, displayName, id])
   @@index([countryOfBirthId, status, archivedAt])
 }

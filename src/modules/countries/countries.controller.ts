@@ -59,4 +59,20 @@ export class CountriesController {
   ): ReturnType<CountriesService['restore']> {
     return this.service.restore(id);
   }
+
+  @Patch(':id/publish')
+  @ApiOperation({ summary: 'Publish a country for the Public API' })
+  publish(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+  ): ReturnType<CountriesService['publish']> {
+    return this.service.publish(id);
+  }
+
+  @Patch(':id/withdraw')
+  @ApiOperation({ summary: 'Withdraw a country from the Public API' })
+  withdraw(
+    @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+  ): ReturnType<CountriesService['withdraw']> {
+    return this.service.withdraw(id);
+  }
 }

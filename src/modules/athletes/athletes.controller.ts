@@ -53,6 +53,16 @@ export class AthletesController {
   ): ReturnType<AthletesService['restore']> {
     return this.s.restore(id);
   }
+  @Patch(':id/publish')
+  @ApiOperation({ summary: 'Publish a validated athlete profile for the Public API' })
+  publish(@Param('id', u()) id: string): ReturnType<AthletesService['publish']> {
+    return this.s.publish(id);
+  }
+  @Patch(':id/withdraw')
+  @ApiOperation({ summary: 'Withdraw an athlete profile from the Public API' })
+  withdraw(@Param('id', u()) id: string): ReturnType<AthletesService['withdraw']> {
+    return this.s.withdraw(id);
+  }
   @Get(':id/clubs') clubs(
     @Param('id', u()) id: string,
     @Query() q: PaginationQueryDto,

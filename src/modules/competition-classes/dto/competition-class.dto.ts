@@ -83,8 +83,7 @@ export class CompetitionClassListQueryDto {
     enum: ['competitionDate', 'sortOrder', 'title', 'createdAt'],
     default: 'sortOrder',
   })
-  sortBy: 'competitionDate' | 'sortOrder' | 'title' | 'createdAt' =
-    'sortOrder';
+  sortBy: 'competitionDate' | 'sortOrder' | 'title' | 'createdAt' = 'sortOrder';
   @ApiPropertyOptional({ type: String, enum: ['asc', 'desc'], default: 'asc' })
   sortOrder: 'asc' | 'desc' = 'asc';
 }

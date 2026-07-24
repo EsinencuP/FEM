@@ -1,10 +1,6 @@
 import { type ExecutionContext, Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
-import {
-  ThrottlerGuard,
-  ThrottlerModule,
-  ThrottlerStorage,
-} from '@nestjs/throttler';
+import { ThrottlerGuard, ThrottlerModule, ThrottlerStorage } from '@nestjs/throttler';
 import { LoggerModule } from 'nestjs-pino';
 
 import { AppConfigModule } from './config/app-config.module';
@@ -24,10 +20,20 @@ import { OwnersModule } from './modules/owners/owners.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { PostgresThrottlerStorage } from './common/security/postgres-throttler-storage';
 import { AuditModule } from './modules/audit/audit.module';
+import { PublicApiModule } from './modules/public-api/public-api.module';
 
 function requestPath(context: ExecutionContext): string {
   const request = context.switchToHttp().getRequest<{ originalUrl?: unknown }>();
   return typeof request.originalUrl === 'string' ? request.originalUrl : '';
+}
+
+function isPublicSearchRequest(context: ExecutionContext): boolean {
+  const originalUrl = requestPath(context);
+  if (!/\/v1\/public\/(?:ro|ru)(?:\/|$)/u.test(originalUrl)) return false;
+  if (/\/v1\/public\/(?:ro|ru)\/search(?:\/|\?|$)/u.test(originalUrl)) return true;
+  const queryStart = originalUrl.indexOf('?');
+  if (queryStart < 0) return false;
+  return new URLSearchParams(originalUrl.slice(queryStart + 1)).has('search');
 }
 
 @Module({
@@ -43,7 +49,13 @@ function requestPath(context: ExecutionContext): string {
       inject: [AppConfigService],
       useFactory: (config: AppConfigService) => ({
         throttlers: [
-          { name: 'default', ttl: 60_000, limit: config.rateLimitDefaultPerMinute },
+          {
+            name: 'default',
+            ttl: 60_000,
+            limit: config.rateLimitDefaultPerMinute,
+            skipIf: (context: ExecutionContext): boolean =>
+              /\/v1\/(?:admin|public|integration)(?:\/|$)/.test(requestPath(context)),
+          },
           {
             name: 'auth',
             ttl: 60_000,
@@ -69,15 +81,14 @@ function requestPath(context: ExecutionContext): string {
             name: 'search',
             ttl: 60_000,
             limit: config.rateLimitSearchPerMinute,
-            skipIf: (context: ExecutionContext): boolean =>
-              !/\/v1\/public\/search(?:\/|\?|$)/.test(requestPath(context)),
+            skipIf: (context: ExecutionContext): boolean => !isPublicSearchRequest(context),
           },
           {
             name: 'files',
             ttl: 60_000,
             limit: config.rateLimitFilesPerMinute,
             skipIf: (context: ExecutionContext): boolean =>
-              !/\/v1\/(?:admin|public)\/(?:media|documents)(?:\/|$)/.test(
+              !/\/v1\/(?:admin\/(?:media|documents)|public\/(?:ro|ru)\/(?:media|documents))(?:\/|$)/.test(
                 requestPath(context),
               ),
           },
@@ -104,6 +115,7 @@ function requestPath(context: ExecutionContext): string {
     CompetitionsModule,
     CompetitionClassesModule,
     CompetitionResultsModule,
+    PublicApiModule,
   ],
   providers: [
     PostgresThrottlerStorage,

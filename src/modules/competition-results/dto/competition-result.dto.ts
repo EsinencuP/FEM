@@ -182,8 +182,7 @@ export class CompetitionResultListQueryDto {
     enum: ['rank', 'points', 'timeSeconds', 'penalties', 'createdAt'],
     default: 'rank',
   })
-  sortBy: 'rank' | 'points' | 'timeSeconds' | 'penalties' | 'createdAt' =
-    'rank';
+  sortBy: 'rank' | 'points' | 'timeSeconds' | 'penalties' | 'createdAt' = 'rank';
   @ApiPropertyOptional({ type: String, enum: ['asc', 'desc'], default: 'asc' })
   sortOrder: 'asc' | 'desc' = 'asc';
 }

@@ -5,6 +5,7 @@ build/
 coverage/
 .next/
 graphify-out/
+api-client/generated/
 tmp/
 temp/
 logs/

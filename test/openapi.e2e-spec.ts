@@ -11,9 +11,7 @@ import { AppConfigService } from '../src/config/app-config.service';
 const HTTP_METHODS = ['get', 'post', 'put', 'patch', 'delete', 'options', 'head'] as const;
 type PathItem = OpenAPIObject['paths'][string];
 type PathOperation = NonNullable<PathItem['get']>;
-type ComponentSchema = NonNullable<
-  NonNullable<OpenAPIObject['components']>['schemas']
->[string];
+type ComponentSchema = NonNullable<NonNullable<OpenAPIObject['components']>['schemas']>[string];
 
 describe('OpenAPI contract (e2e)', () => {
   let app: NestExpressApplication;
@@ -41,7 +39,7 @@ describe('OpenAPI contract (e2e)', () => {
       }
     }
 
-    expect(operations).toHaveLength(97);
+    expect(operations).toHaveLength(125);
     for (const operation of operations) {
       const success = Object.entries(operation.responses).find(([status]) =>
         /^2\d\d$/.test(status),
@@ -131,8 +129,34 @@ describe('OpenAPI contract (e2e)', () => {
         : undefined;
 
     expect(athleteSchema && '$ref' in athleteSchema ? athleteSchema.$ref : undefined).toBe(
-      '#/components/schemas/AthleteListResponse',
+      '#/components/schemas/AthleteListItemListResponse',
     );
+    const horseList = document.paths['/api/v1/admin/horses']?.get?.responses['200'];
+    const horseListSchema =
+      horseList && !('$ref' in horseList)
+        ? horseList.content?.['application/json']?.schema
+        : undefined;
+    expect(horseListSchema && '$ref' in horseListSchema ? horseListSchema.$ref : undefined).toBe(
+      '#/components/schemas/HorseListItemListResponse',
+    );
+    expect(document.components?.schemas?.AthleteListItem).toMatchObject({
+      allOf: [
+        { $ref: '#/components/schemas/Athlete' },
+        {
+          required: ['currentClubs', 'primaryIdentifier'],
+          properties: {
+            currentClubs: {
+              type: 'array',
+              items: { $ref: '#/components/schemas/CurrentClubProjection' },
+            },
+            primaryIdentifier: {
+              allOf: [{ $ref: '#/components/schemas/ExternalIdentifierSummary' }],
+              nullable: true,
+            },
+          },
+        },
+      ],
+    });
     const athleteComponent = document.components?.schemas?.Athlete;
     expect(athleteComponent).toBeDefined();
     if (!athleteComponent || '$ref' in athleteComponent) return;
@@ -155,7 +179,11 @@ describe('OpenAPI contract (e2e)', () => {
       ['/api/v1/admin/horses/{id}', 'HorseDetailResponse', 'HorseDetail'],
       ['/api/v1/admin/clubs/{id}', 'ClubDetailResponse', 'ClubDetail'],
       ['/api/v1/admin/owners/{id}', 'OwnerDetailResponse', 'OwnerDetail'],
-      ['/api/v1/admin/competitions/{id}', 'CompetitionEventDetailResponse', 'CompetitionEventDetail'],
+      [
+        '/api/v1/admin/competitions/{id}',
+        'CompetitionEventDetailResponse',
+        'CompetitionEventDetail',
+      ],
       [
         '/api/v1/admin/competition-classes/{id}',
         'CompetitionClassDetailResponse',
@@ -193,9 +221,33 @@ describe('OpenAPI contract (e2e)', () => {
         },
       ],
     });
+    expect(document.components?.schemas?.HorseDetail).toMatchObject({
+      allOf: [
+        { $ref: '#/components/schemas/Horse' },
+        {
+          required: [
+            'countryOfBirth',
+            'ownerships',
+            'athleteRelations',
+            'competitionResults',
+            'externalIdentifiers',
+          ],
+          properties: {
+            competitionResults: {
+              type: 'array',
+              items: { $ref: '#/components/schemas/CompetitionResultProjection' },
+            },
+            externalIdentifiers: {
+              type: 'array',
+              items: { $ref: '#/components/schemas/ExternalIdentifierSummary' },
+            },
+          },
+        },
+      ],
+    });
   });
 
-  it('marks non-slug path parameters as UUIDs and documents payload limits', () => {
+  it('marks identifier path parameters as UUIDs and documents payload limits', () => {
     const document = createOpenApiDocument(app);
     const invalidPathParameters: string[] = [];
     let requestBodyOperations = 0;
@@ -209,9 +261,8 @@ describe('OpenAPI contract (e2e)', () => {
             !('$ref' in parameter) &&
             parameter.in === 'path' &&
             parameter.name !== 'slug' &&
-            (!parameter.schema ||
-              '$ref' in parameter.schema ||
-              parameter.schema.format !== 'uuid')
+            parameter.name !== 'lang' &&
+            (!parameter.schema || '$ref' in parameter.schema || parameter.schema.format !== 'uuid')
           ) {
             invalidPathParameters.push(`${method.toUpperCase()} ${path}:${parameter.name}`);
           }
@@ -227,6 +278,64 @@ describe('OpenAPI contract (e2e)', () => {
     expect(invalidPathParameters).toEqual([]);
   });
 
+  it('documents locale-scoped Public operations with strict response components', () => {
+    const document = createOpenApiDocument(app);
+    const expectations = [
+      ['/api/v1/public/{lang}/countries', 'PublicCountryListResponse'],
+      ['/api/v1/public/{lang}/disciplines', 'PublicDisciplineListResponse'],
+      ['/api/v1/public/{lang}/clubs', 'PublicClubListResponse'],
+      ['/api/v1/public/{lang}/clubs/{id}', 'PublicClubResponse'],
+      ['/api/v1/public/{lang}/athletes', 'PublicAthleteListResponse'],
+      ['/api/v1/public/{lang}/athletes/{id}', 'PublicAthleteResponse'],
+      ['/api/v1/public/{lang}/horses', 'PublicHorseListResponse'],
+      ['/api/v1/public/{lang}/horses/{id}', 'PublicHorseResponse'],
+      ['/api/v1/public/{lang}/competitions', 'PublicCompetitionListResponse'],
+      ['/api/v1/public/{lang}/competitions/{slug}', 'PublicCompetitionResponse'],
+      ['/api/v1/public/{lang}/competition-classes', 'PublicCompetitionClassListResponse'],
+      ['/api/v1/public/{lang}/competition-classes/{id}', 'PublicCompetitionClassResponse'],
+      ['/api/v1/public/{lang}/results', 'PublicCompetitionResultListResponse'],
+      ['/api/v1/public/{lang}/results/{id}', 'PublicCompetitionResultResponse'],
+    ] as const;
+
+    for (const [path, schemaName] of expectations) {
+      const operation = document.paths[path]?.get;
+      const response = operation?.responses['200'];
+      const schema =
+        response && !('$ref' in response)
+          ? response.content?.['application/json']?.schema
+          : undefined;
+      expect(operation?.security).toEqual([]);
+      expect(operation?.responses['304']).toBeDefined();
+      expect(
+        operation?.parameters?.some(
+          (parameter) => !('$ref' in parameter) && parameter.name === 'If-None-Match',
+        ),
+      ).toBe(true);
+      const responseHeaders = response && !('$ref' in response) ? response.headers : undefined;
+      expect(responseHeaders?.ETag).toBeDefined();
+      expect(responseHeaders?.['Cache-Control']).toBeDefined();
+      expect(responseHeaders?.['Content-Language']).toBeDefined();
+      expect(schema && '$ref' in schema ? schema.$ref : undefined).toBe(
+        `#/components/schemas/${schemaName}`,
+      );
+    }
+
+    const athlete = document.components?.schemas?.PublicAthlete;
+    expect(athlete && !('$ref' in athlete) ? athlete.additionalProperties : undefined).toBe(false);
+    expect(athlete && !('$ref' in athlete) ? Object.keys(athlete.properties ?? {}) : []).toEqual(
+      expect.arrayContaining(['id', 'firstName', 'lastName', 'displayName']),
+    );
+    expect(JSON.stringify(athlete)).not.toMatch(
+      /dateOfBirth|gender|isDemo|archivedAt|createdAt|updatedAt/,
+    );
+    const langParameter = document.paths['/api/v1/public/{lang}/athletes']?.get?.parameters?.find(
+      (parameter) => !('$ref' in parameter) && parameter.name === 'lang',
+    );
+    expect(
+      langParameter && !('$ref' in langParameter) ? langParameter.schema : undefined,
+    ).toMatchObject({ enum: ['ro', 'ru'] });
+  });
+
   it('documents the ADMIN cookie, CSRF boundary and typed authentication responses', () => {
     const document = createOpenApiDocument(app);
     expect(document.components?.securitySchemes?.adminSession).toMatchObject({
@@ -238,8 +347,7 @@ describe('OpenAPI contract (e2e)', () => {
     const login = document.paths['/api/v1/auth/login']?.post;
     const refresh = document.paths['/api/v1/auth/refresh']?.post;
     const startReenrollment = document.paths['/api/v1/auth/totp/re-enrollment']?.post;
-    const confirmReenrollment =
-      document.paths['/api/v1/auth/totp/re-enrollment/confirm']?.post;
+    const confirmReenrollment = document.paths['/api/v1/auth/totp/re-enrollment/confirm']?.post;
     const me = document.paths['/api/v1/auth/me']?.get;
     const adminCreate = document.paths['/api/v1/admin/countries']?.post;
     const loginResponse = login?.responses['200'];
@@ -268,6 +376,13 @@ describe('OpenAPI contract (e2e)', () => {
     expect(meSchema && '$ref' in meSchema ? meSchema.$ref : undefined).toBe(
       '#/components/schemas/AdminIdentityResponse',
     );
+    const schemas = document.components?.schemas;
+    const adminIdentity = schemas?.AdminIdentity;
+    const loginEnvelope = schemas?.AuthLoginResponse;
+    expect(
+      adminIdentity && !('$ref' in adminIdentity) ? adminIdentity.required : undefined,
+    ).toEqual(expect.arrayContaining(['roles', 'permissions', 'secondFactorMethod']));
+    expect(JSON.stringify(loginEnvelope)).toContain('"permissions"');
     const responseReference = (operation: PathOperation | undefined): string | undefined => {
       const response = operation?.responses['200'];
       const schema =
@@ -283,6 +398,32 @@ describe('OpenAPI contract (e2e)', () => {
     expect(responseReference(confirmReenrollment)).toBe(
       '#/components/schemas/RecoveryCodesResponse',
     );
+  });
+
+  it('keeps every Admin PATCH route inside the optimistic-version entity inventory', () => {
+    const document = createOpenApiDocument(app);
+    const supportedPaths = [
+      /^\/api\/v1\/admin\/countries\/\{id\}(?:\/archive|\/restore|\/publish|\/withdraw)?$/,
+      /^\/api\/v1\/admin\/disciplines\/\{id\}(?:\/archive|\/restore|\/publish|\/withdraw)?$/,
+      /^\/api\/v1\/admin\/clubs\/\{id\}(?:\/archive|\/restore|\/publish|\/withdraw)?$/,
+      /^\/api\/v1\/admin\/owners\/\{id\}(?:\/archive|\/restore)?$/,
+      /^\/api\/v1\/admin\/athletes\/\{id\}(?:\/archive|\/restore|\/publish|\/withdraw)?$/,
+      /^\/api\/v1\/admin\/horses\/\{id\}(?:\/archive|\/restore|\/publish|\/withdraw)?$/,
+      /^\/api\/v1\/admin\/competitions\/\{id\}(?:\/archive|\/restore|\/publish|\/withdraw)?$/,
+      /^\/api\/v1\/admin\/competition-classes\/\{id\}(?:\/archive|\/restore)?$/,
+      /^\/api\/v1\/admin\/results\/\{id\}(?:\/archive|\/restore|\/publish|\/withdraw)?$/,
+      /^\/api\/v1\/admin\/athletes\/\{id\}\/clubs\/\{membershipId\}$/,
+      /^\/api\/v1\/admin\/(?:athletes\/\{id\}\/horses|horses\/\{id\}\/athletes)\/\{relationId\}$/,
+      /^\/api\/v1\/admin\/horses\/\{id\}\/owners\/\{ownershipId\}$/,
+      /^\/api\/v1\/admin\/(?:athletes|horses|clubs)\/\{id\}\/identifiers\/\{identifierId\}$/,
+      /^\/api\/v1\/admin\/results\/\{id\}\/metrics\/\{metricId\}$/,
+    ];
+    const unknownPatchPaths = Object.entries(document.paths)
+      .filter(([path, pathItem]) => path.startsWith('/api/v1/admin/') && pathItem.patch)
+      .map(([path]) => path)
+      .filter((path) => !supportedPaths.some((pattern) => pattern.test(path)));
+
+    expect(unknownPatchPaths).toEqual([]);
   });
 
   it('documents scalar query and request fields without empty Object fallbacks', () => {
@@ -343,11 +484,12 @@ describe('OpenAPI contract (e2e)', () => {
     });
 
     const createCompetition = document.components?.schemas?.CreateCompetitionDto;
-    expect(createCompetition && !('$ref' in createCompetition) ? createCompetition.properties : {})
-      .toMatchObject({
-        description: { type: 'string', nullable: true },
-        countryId: { type: 'string', format: 'uuid', nullable: true },
-        startDate: { type: 'string', format: 'date' },
-      });
+    expect(
+      createCompetition && !('$ref' in createCompetition) ? createCompetition.properties : {},
+    ).toMatchObject({
+      description: { type: 'string', nullable: true },
+      countryId: { type: 'string', format: 'uuid', nullable: true },
+      startDate: { type: 'string', format: 'date' },
+    });
   });
 });

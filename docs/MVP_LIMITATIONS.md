@@ -1,22 +1,86 @@
-# MVP Limitations
+# Ограничения DB-first demo-MVP
 
-Current status: private development backend only.
+Дата актуализации: 2026-07-24
 
-- Authentication, login, JWT/session handling and 2FA are absent.
-- Roles and permissions are absent.
-- The API must not be exposed publicly without an access-control layer.
-- Protected Admin and allowlisted Public API namespaces are absent.
-- Current reads may include draft, archived or internal data when explicitly
-  requested.
-- Official ranking is not calculated.
-- Competition registration, entries, payments, start lists and live scoring are
-  absent.
-- Excel import/export, FEI synchronization, webhooks and background jobs are
-  absent.
-- Atomic actor-attributed application audit is not implemented.
-- Rate limiting and an approved CORS/security-header policy are not implemented.
-- Frontend, administrative panel and public website are outside the current
-  stabilization stage.
+## Что представляет собой demo
 
-See `docs/stabilization/FINAL_STABILIZATION_REPORT.md` for verified controls and
-the exact deployment blockers.
+Demo-MVP — защищённый интерфейс внутреннего инструмента учёта на подготовленной
+PostgreSQL базе.
+
+Он показывает:
+
+- спортсменов;
+- лошадей;
+- соревнования;
+- категории/классы;
+- результаты;
+- поиск, фильтры, сортировку и минимальное редактирование.
+
+Это не production-система и не публичный портал.
+
+## Что не входит в первый показ
+
+- расширение уже существующего Public API и публичный frontend;
+- маркетинговая главная и новости;
+- dashboard и сложная аналитика;
+- Excel import;
+- обучение операторов;
+- CMS/media;
+- официальный рейтинг;
+- owners/ownership UI;
+- отдельные страницы клубов;
+- массовые операции;
+- архив/restore UI;
+- внешние интеграции;
+- регистрация, платежи и live scoring;
+- второй язык, если он не нужен для demo;
+- полное production-hardening.
+
+## Допустимые ограничения demo
+
+- используются вымышленные данные;
+- один язык;
+- desktop является основным режимом показа;
+- mobile остаётся работоспособным, но не является отдельным дизайном;
+- категории используют `CompetitionClass.category/level`;
+- формы содержат только поля, необходимые сценарию;
+- полный audit доступен в backend, но не показывается отдельной страницей;
+- вход может выполняться заранее подготовленной demo-учётной записью.
+
+## Обязательные ограничения
+
+- frontend не подключается напрямую к БД;
+- база, Swagger, Prisma Studio и терминал не показываются заказчику;
+- demo credentials не хранятся во frontend;
+- реальные персональные данные не используются без решения FEM;
+- UUID и технические поля не показываются;
+- auth, CSRF, idempotency и optimistic concurrency не отключаются;
+- demo использует отдельную БД;
+- вымышленные данные явно помечаются;
+- неработающие будущие функции не выводятся в меню.
+
+Внешний HTTPS preview не является подтверждённым: hosting access, DNS/TLS и
+deployment secrets не предоставлены. Проверен воспроизводимый локальный
+production preview; его нельзя описывать как production deployment.
+
+## Что уже есть и переиспользуется
+
+- PostgreSQL/Prisma;
+- доменные модели и миграции;
+- защищённый Admin API;
+- server-side sessions и 2FA;
+- permissions и audit foundation;
+- фильтры, пагинация и сортировка основных ресурсов;
+- OpenAPI foundation.
+- защищённый demo-web для спортсменов, лошадей и соревнований.
+
+## После подтверждения demo
+
+Первыми рассматриваются:
+
+1. корректировки таблиц и форм;
+2. утверждение реальных справочников;
+3. Excel preview/import;
+4. archive/restore и audit UI;
+5. обучение операторов;
+6. подключение реальных данных.

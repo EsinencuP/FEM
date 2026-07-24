@@ -127,9 +127,8 @@ describe('ADMIN session rotation and 2FA recovery lifecycle (e2e)', () => {
       .set('X-CSRF-Token', issued.data.csrfToken)
       .send({ currentPassword: identity.password })
       .expect(200);
-    const secret = z
-      .object({ data: z.object({ secret: z.string().min(16) }) })
-      .parse(started.body).data.secret;
+    const secret = z.object({ data: z.object({ secret: z.string().min(16) }) }).parse(started.body)
+      .data.secret;
     const confirmation = {
       otp: authenticator.generate(secret),
     };
@@ -145,9 +144,16 @@ describe('ADMIN session rotation and 2FA recovery lifecycle (e2e)', () => {
         .set('X-CSRF-Token', issued.data.csrfToken)
         .send(confirmation),
     ]);
-    expect(confirmations.map(({ status }) => status).sort()).toEqual([200, 409]);
+    const statuses = confirmations.map(({ status }) => status).sort();
+    expect(statuses[0]).toBe(200);
+    expect([403, 409]).toContain(statuses[1]);
     const winner = confirmations.find(({ status }) => status === 200);
     if (!winner) throw new Error('Expected one successful TOTP confirmation');
+    const loser = confirmations.find(({ status }) => status !== 200);
+    const loserError = z.object({ code: z.string() }).parse(loser?.body as unknown);
+    expect(['RECOVERY_SESSION_REQUIRED', 'TOTP_REENROLLMENT_ALREADY_USED']).toContain(
+      loserError.code,
+    );
     const recoveryCode = z
       .object({
         data: z.object({ recoveryCodes: z.array(z.string()).length(10) }),

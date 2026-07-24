@@ -10,6 +10,12 @@ import {
   type ListResponse,
 } from '../../common/dto/api-response';
 import { archivedAtFilter, paginationArgs } from '../../common/pagination/pagination.dto';
+import {
+  assertProfileMutable,
+  assertProfilePublishable,
+  assertProfileWithdrawable,
+  profilePublishData,
+} from '../../common/publication/profile-publication';
 import { PrismaService } from '../../database/prisma.service';
 import type { CountryListQueryDto, CreateCountryDto, UpdateCountryDto } from './dto/country.dto';
 
@@ -56,6 +62,7 @@ export class CountriesService {
     return withSerializableTransaction(this.prisma, async (transaction) => {
       const current = await transaction.country.findUniqueOrThrow({ where: { id } });
       assertActiveRecord(current, 'country');
+      assertProfileMutable(current, 'country');
       return dataResponse(await transaction.country.update({ where: { id }, data: dto }));
     });
   }
@@ -70,9 +77,35 @@ export class CountriesService {
 
   async restore(id: string): Promise<DataResponse<Country>> {
     return withSerializableTransaction(this.prisma, async (transaction) =>
-      dataResponse(
-        await transaction.country.update({ where: { id }, data: { archivedAt: null } }),
-      ),
+      dataResponse(await transaction.country.update({ where: { id }, data: { archivedAt: null } })),
     );
+  }
+
+  async publish(id: string): Promise<DataResponse<Country>> {
+    return withSerializableTransaction(this.prisma, async (transaction) => {
+      const current = await transaction.country.findUniqueOrThrow({ where: { id } });
+      assertActiveRecord(current, 'country');
+      assertProfilePublishable(current, 'country');
+      return dataResponse(
+        await transaction.country.update({
+          where: { id },
+          data: profilePublishData(current),
+        }),
+      );
+    });
+  }
+
+  async withdraw(id: string): Promise<DataResponse<Country>> {
+    return withSerializableTransaction(this.prisma, async (transaction) => {
+      const current = await transaction.country.findUniqueOrThrow({ where: { id } });
+      assertActiveRecord(current, 'country');
+      assertProfileWithdrawable(current, 'country');
+      return dataResponse(
+        await transaction.country.update({
+          where: { id },
+          data: { publicationStatus: 'WITHDRAWN' },
+        }),
+      );
+    });
   }
 }

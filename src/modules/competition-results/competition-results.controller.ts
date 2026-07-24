@@ -61,6 +61,16 @@ export class CompetitionResultsController {
   restore(@Param('id', uuidPipe()) id: string): ReturnType<CompetitionResultsService['restore']> {
     return this.service.restore(id);
   }
+  @Patch(':id/publish')
+  @ApiOperation({ summary: 'Publish a validated result for the Public API' })
+  publish(@Param('id', uuidPipe()) id: string): ReturnType<CompetitionResultsService['publish']> {
+    return this.service.publish(id);
+  }
+  @Patch(':id/withdraw')
+  @ApiOperation({ summary: 'Withdraw a result from the Public API' })
+  withdraw(@Param('id', uuidPipe()) id: string): ReturnType<CompetitionResultsService['withdraw']> {
+    return this.service.withdraw(id);
+  }
   @Post(':id/metrics')
   addMetric(
     @Param('id', uuidPipe()) id: string,

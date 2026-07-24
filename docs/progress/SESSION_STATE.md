@@ -1,87 +1,75 @@
-# FEM backend session state
+# FEM session state
 
 Updated: 2026-07-24
 
-## Goal
+## Active scope
 
-Bring the backend to an evidence-based `PUBLIC-RELEASE-READY` state without
-building frontend code.
+`FEM_MVP_ACCELERATED_PLAN.md` версии 3.0 — DB-first demo-MVP внутреннего
+инструмента учёта. Этапы 0–6 завершены. Этап 7 завершён для
+воспроизводимого локального production preview; внешний HTTPS preview ждёт
+доступа к контролируемому hosting/DNS/TLS и deployment secrets.
 
-## Restored baseline
+Public API не расширялся. Dashboard, public website, CMS, Excel, ranking,
+owners UI и отдельные страницы классов/результатов не создавались.
 
-- Database and private MVP API stabilization completed four audit cycles.
-- Three clean local gates passed migrations, seed x3, unit, DB, E2E, build,
-  performance smoke and compiled HTTP smoke.
-- Current evidence score is 7.3/10.
-- Public deployment remains `NO-GO`.
-- Graphify 0.9.25 graph exists in `graphify-out/`; the CLI is available at
-  `C:\Users\User.DESKTOP\.local\bin\graphify.exe` but is not in the current
-  PowerShell `PATH`.
-- Project-scoped Graphify skill is referenced by the graph but
-  `.agents/skills/graphify/SKILL.md` is not present in the current checkout.
+## Gates
 
-## Confirmed release blockers
+| Этап                    | Результат   | Доказательство                                                        |
+| ----------------------- | ----------- | --------------------------------------------------------------------- |
+| 0 — demo contract       | PASS        | RU, visible fields, 4 provisional categories, 7 route/API mappings    |
+| 1 — baseline            | PASS        | Node 22.23.1, Prisma, lint, typecheck, 70 unit, build                 |
+| 2 — DB/data             | PASS        | clean PostgreSQL 16, 17 migrations, seed x3, DB 28/28                 |
+| 3 — API contract        | PASS        | readable projections, OpenAPI/types checks, E2E 85/85                 |
+| 4 — frontend foundation | PASS        | protected shell, API/auth client, reusable table/form/state UI        |
+| 5 — minimal screens     | PASS        | 7 routes, real Admin API and demo DB end-to-end                       |
+| 6 — integration/QA      | PASS        | browser QA, safe PATCH, URL state, pagination 1/100, no P0            |
+| 7 — preview             | CONDITIONAL | local production preview PASS; external HTTPS environment unavailable |
 
-- no Public/Admin API separation;
-- no authentication, session lifecycle, 2FA or RBAC;
-- no atomic application audit writer;
-- no rate limiting or production CORS allowlist;
-- OpenAPI success envelopes do not expose resource properties;
-- no CMS for news, pages, navigation, localized SEO or revisions;
-- no public allowlist projections;
-- external staging/UAT/backup/restore/monitoring evidence is not yet available.
+## Demo-web
 
-## Scope decision
+Workspace: `apps/demo-web`.
 
-The latest user instruction explicitly authorizes and requires authentication,
-roles, 2FA, Public API and CMS. It supersedes the earlier stabilization-only
-scope that prohibited those product modules. Official ranking calculation and
-competition registration remain excluded.
+Routes:
 
-## Current stage
+- `/login`;
+- `/athletes`, `/athletes/:id`;
+- `/horses`, `/horses/:id`;
+- `/competitions`, `/competitions/:id`.
 
-Stage 2 — Admin Protection: in progress after Stage 1 received an independent
-**STRICT GO**.
+The competition workspace contains provisional category/class navigation and
+the selected class results. There are no dashboard, owners, Public API or
+standalone class/result screens.
 
-## Stage 1 implemented
+## Integration fixes
 
-- validated exact-origin `CORS_ALLOWED_ORIGINS`; wildcard rejected, production
-  fails closed when empty, and production browser origins require HTTPS;
-- resource-specific OpenAPI components and response envelopes;
-- detail and list relation projections documented for generated clients;
-- UUID path formats and 413 payload-limit responses documented;
-- paginated nested external identifier collections;
-- `docs/delivery/FRONTEND_API_MATRIX.md`;
-- reproducible `pnpm openapi:export` snapshot and SHA-256 at
-  `api-client/openapi/`, enforced by `pnpm openapi:check` in CI;
-- Graphify refreshed to 1,599 nodes, 2,940 edges and 102 communities.
+- SameSite login uses the same `127.0.0.1` site for frontend and API; cookie
+  protection was not weakened.
+- Nested competition class/result reads send only the query fields accepted
+  by their strict DTO.
+- Countries, clubs and disciplines lookups use their factual contracts and do
+  not exclude presentation DRAFT records.
+- Frontend errors map 401/403/404/409/500 to safe text and retain requestId.
 
-## Stage 1 evidence
+## Final verified gate
 
-- migrations applied to clean `fem_audit_release_stage1`;
-- demo seed executed twice with stable counts;
-- database: 1 suite / 20 tests passed;
-- unit: 9 suites / 68 tests passed;
-- E2E: 4 suites / 40 tests passed;
-- OpenAPI: 85 operations, zero empty `Object` request/query references;
-- lint, typecheck, OpenAPI snapshot/checksum check and build passed on Node 22.
+- Prisma format/validate/generate — PASS;
+- backend ESLint / strict TypeScript / build — PASS;
+- backend unit — 10 suites / 70 tests;
+- DB — 2 suites / 28 tests;
+- E2E — 12 suites / 85 tests;
+- OpenAPI snapshot/checksum and generated types — PASS;
+- demo-web ESLint / strict TypeScript / build — PASS;
+- demo-web unit/component — 2 files / 11 tests;
+- browser QA — PASS at 1280×800 and accessible 390×844;
+- local production preview — PASS at `http://127.0.0.1:5173`.
 
-## Independent Stage 1 remediation
+Audit database: `fem_audit_demo_stage2_20260724223427`. Existing development
+database was not reset or dropped.
 
-- empty `Object` request/query schemas corrected and regression-tested;
-- runtime list selects and documented required fields aligned;
-- detail and list relation projections added after the reviewer found generated
-  clients could not type actual detail payloads;
-- all non-slug path parameters marked as UUID;
-- standard 413 error response documented;
-- nested identifiers pagination receives runtime E2E coverage;
-- snapshot/checksum verification added to CI;
-- frontend matrix query names and sort allowlists aligned with code.
+## Current boundary
 
-The second independent review confirmed the corrected implementation and
-contract evidence. Stage 1 is closed with `STRICT GO`; this is scope-limited and
-does not authorize public exposure before Stage 2.
+Local demo status: **GO**.
 
-Two intentionally rejected database names proved the seed guard fails closed:
-`fem_release_stage1` and `fem_test_release_stage1`. They contain baseline
-migrations only and were not seeded or used for mutating tests.
+External demo status: **CONDITIONAL GO**. Do not claim external readiness
+until hosting access, HTTPS, exact deployed CORS, secret storage and protected
+or disabled Swagger have been verified in a clean browser session.

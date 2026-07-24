@@ -63,11 +63,27 @@
 
 ## Audit trail
 
-- Критические изменения записываются в append-only на application level `AuditLog`, по возможности в той же DB transaction, что и domain write.
+- Admin domain changes записываются в `AuditLog` в той же serializable DB
+  transaction, что и domain write; сбой audit откатывает изменение.
 - Audit обязателен для identifier create/change/verification/conflict/archive/reassignment, merges, archive/restore, import linking decisions и критических publication/ranking/permission changes.
 - Audit содержит actor, action, entity type/UUID, redacted old/new data, reason, request ID и timestamp.
 - Audit не хранит passwords, tokens, cookies, authorization headers, database URLs или unredacted sensitive document contents.
-- Физическое изменение или удаление audit events запрещено штатным runtime role; сроки хранения требуют отдельного юридического решения.
+- PostgreSQL triggers запрещают `UPDATE`, `DELETE` и `TRUNCATE` audit events;
+  actor/session evidence использует `RESTRICT`. Сроки хранения требуют
+  отдельного юридического решения.
+
+## Admin security state
+
+- Пароли хранятся только как Argon2id hash; TOTP secret шифруется
+  `AUTH_ENCRYPTION_KEY`; recovery/session/CSRF tokens хранятся только как hash.
+- `AdminSession` использует absolute и idle expiry, отзыв, token rotation и
+  server-side reuse detection.
+- `Permission` и `RolePermission` отделяют право операции от самого факта
+  наличия роли. Runtime проверяет только активные role/permission assignments.
+- `RateLimitBucket` и `IdempotencyRecord` являются техническими
+  security/reliability records, не предметными сущностями Федерации.
+- Все mutable Admin resources имеют `version`; normal PATCH требует compare and
+  increment через numeric `If-Match`.
 
 ## Import governance
 
@@ -97,7 +113,19 @@
 - В `.env.example` используются только placeholders.
 - Database URL, пароли и connection strings должны редактироваться в логах и diagnostic output.
 - Для staging/production нужны отдельные пользователи БД с минимальными правами.
-- Migration role и runtime role рекомендуется разделить.
+- Migration owner и runtime login обязательны и разделены. Миграции создают
+  database-scoped NOLOGIN capability
+  `fem_runtime_<database-md5-prefix>`; deployment grant-ит только её отдельному
+  restricted login с `ADMIN FALSE`, `INHERIT TRUE`, `SET FALSE`. Production
+  startup fail-closed при опасных role attributes, лишних memberships,
+  ownership/default ACL, любом отклонении table/column ACL и grant options,
+  доступе к неожиданным пользовательским schemas/relations/functions/sequences,
+  небезопасном PUBLIC/system ACL, создании или владении database/schema и
+  другими PostgreSQL objects, доступе к migration history, изменении permission
+  configuration или update/delete/truncate/trigger на audit.
+- Runtime login имеет effective `CONNECT` только к текущей БД; соседние cluster
+  databases требуют `REVOKE CONNECT ... FROM PUBLIC` либо отдельного кластера.
+  `session_replication_role` при startup обязан быть `origin`.
 - Перед production необходимо определить backup, restore test, retention, encryption и incident procedure.
 - Demo/test data маркируются `isDemo` там, где это предусмотрено, и не смешиваются с production datasets.
 - Raw imports, audit JSON и metadata проходят redaction и data-minimization review; JSON не используется вместо нормализованной модели без документированной причины.

@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
 import type { CompetitionEvent, Prisma } from '@prisma/client';
 
 import { assertActiveRecord } from '../../common/database/archive-policy';
@@ -15,6 +15,7 @@ import {
   paginationArgs,
   type PaginationQuery,
 } from '../../common/pagination/pagination.dto';
+import { publicEventDependenciesWhere } from '../../common/publication/public-visibility';
 import { PrismaService } from '../../database/prisma.service';
 import type {
   CompetitionListQueryDto,
@@ -149,6 +150,22 @@ export class CompetitionsService {
     return withSerializableTransaction(this.prisma, async (transaction) => {
       const current = await transaction.competitionEvent.findUniqueOrThrow({ where: { id } });
       assertActiveRecord(current, 'competition');
+      if (dto.slug !== undefined && dto.slug !== current.slug && current.publishedAt !== null) {
+        throw new ConflictException({
+          message: 'A competition slug is immutable after first publication',
+          code: 'PUBLISHED_SLUG_IMMUTABLE',
+        });
+      }
+      if (
+        current.publicationStatus === 'PUBLISHED' &&
+        dto.status !== undefined &&
+        !['ACTIVE', 'INACTIVE'].includes(dto.status)
+      ) {
+        throw new ConflictException({
+          message: 'Withdraw a published competition before hiding it through lifecycle status',
+          code: 'PUBLISHED_EVENT_STATUS_REQUIRES_WITHDRAWAL',
+        });
+      }
       const [country, coverMedia] = await Promise.all([
         dto.countryId
           ? transaction.country.findUnique({
@@ -253,6 +270,96 @@ export class CompetitionsService {
         await transaction.competitionEvent.update({
           where: { id },
           data: { archivedAt: null },
+        }),
+      );
+    });
+  }
+
+  async publish(id: string): Promise<DataResponse<CompetitionEvent>> {
+    return withSerializableTransaction(this.prisma, async (transaction) => {
+      const current = await transaction.competitionEvent.findUniqueOrThrow({ where: { id } });
+      assertActiveRecord(current, 'competition');
+      if (current.isDemo) {
+        throw new ConflictException({
+          message: 'Demo competitions cannot be published',
+          code: 'DEMO_PUBLICATION_FORBIDDEN',
+        });
+      }
+      if (current.publicationStatus === 'PUBLISHED') {
+        throw new ConflictException({
+          message: 'Competition is already published',
+          code: 'ALREADY_PUBLISHED',
+        });
+      }
+      if (!['ACTIVE', 'INACTIVE'].includes(current.status)) {
+        throw new ConflictException({
+          message: 'Competition must be active or inactive before publication',
+          code: 'PUBLICATION_STATE_INVALID',
+        });
+      }
+      const publicCandidate = await transaction.competitionEvent.findFirst({
+        where: { AND: [{ id }, publicEventDependenciesWhere(new Date())] },
+        select: { id: true },
+      });
+      if (!publicCandidate) {
+        throw new ConflictException({
+          message: 'Competition has a dependency that is not eligible for public display',
+          code: 'PUBLICATION_DEPENDENCY_INVALID',
+        });
+      }
+      const [country, coverMedia] = await Promise.all([
+        current.countryId
+          ? transaction.country.findUnique({
+              where: { id: current.countryId },
+              select: { archivedAt: true, isDemo: true },
+            })
+          : Promise.resolve(null),
+        current.coverMediaId
+          ? transaction.mediaFile.findUnique({
+              where: { id: current.coverMediaId },
+              select: { archivedAt: true, isDemo: true, status: true },
+            })
+          : Promise.resolve(null),
+      ]);
+      validateReferenceStates(
+        [
+          ...(current.countryId ? [{ resourceName: 'Country', state: country }] : []),
+          ...(current.coverMediaId ? [{ resourceName: 'Media file', state: coverMedia }] : []),
+        ],
+        current.isDemo,
+      );
+      if (coverMedia && coverMedia.status !== 'ACTIVE') {
+        throw new ConflictException({
+          message: 'Competition cover media must be active before publication',
+          code: 'PUBLICATION_DEPENDENCY_INVALID',
+        });
+      }
+      return dataResponse(
+        await transaction.competitionEvent.update({
+          where: { id },
+          data: {
+            publicationStatus: 'PUBLISHED',
+            publishedAt: current.publishedAt ?? new Date(),
+          },
+        }),
+      );
+    });
+  }
+
+  async withdraw(id: string): Promise<DataResponse<CompetitionEvent>> {
+    return withSerializableTransaction(this.prisma, async (transaction) => {
+      const current = await transaction.competitionEvent.findUniqueOrThrow({ where: { id } });
+      assertActiveRecord(current, 'competition');
+      if (current.publicationStatus !== 'PUBLISHED') {
+        throw new ConflictException({
+          message: 'Only a published competition can be withdrawn',
+          code: 'PUBLICATION_STATE_INVALID',
+        });
+      }
+      return dataResponse(
+        await transaction.competitionEvent.update({
+          where: { id },
+          data: { publicationStatus: 'WITHDRAWN' },
         }),
       );
     });

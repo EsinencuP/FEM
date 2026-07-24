@@ -2,14 +2,24 @@
 
 Автономный backend информационной платформы Национальной федерации конного
 спорта Молдовы. Репозиторий содержит NestJS REST API, PostgreSQL/Prisma-модель,
-защищённую административную поверхность и versioned ranking snapshots без
-официальной формулы. Frontend, регистрация на турниры и production deployment
-намеренно отсутствуют.
+защищённую административную поверхность, внутренний demo-web и versioned
+ranking snapshots без официальной формулы. Регистрация на турниры, публичный
+frontend и production deployment намеренно отсутствуют.
 
 > Административные маршруты `/api/v1/admin/*` защищены server-side session,
-> TOTP/recovery 2FA, permission checks, CSRF и shared rate limiting. Полный
-> published-only Public API и CMS ещё не завершены, поэтому backend пока нельзя
-> открывать в Интернет как готовый публичный релиз.
+> TOTP/recovery 2FA, permission checks, CSRF и shared rate limiting. Активный
+> delivery scope определён `FEM_MVP_ACCELERATED_PLAN.md`: первый consumer —
+> защищённый DB-first demo-web через Admin API. Уже реализованный
+> published-only sports Public API сохраняется под `/api/v1/public/{lang}`, но
+> не расширяется и не является условием первого demo. Backend нельзя открывать
+> в Интернет как готовый публичный релиз.
+
+Порядок чтения:
+
+- `FEM_MVP_ACCELERATED_PLAN.md`;
+- `docs/README.md`;
+- `docs/progress/NEXT_ACTION.md`;
+- `docs/delivery/CURRENT_QUALITY_STATUS.md`.
 
 ## Требования
 
@@ -84,7 +94,30 @@ corepack prepare pnpm@11.9.0 --activate
    pnpm start:dev
    ```
 
-API будет доступен по адресу `http://localhost:3000/api`, health endpoint — `http://localhost:3000/api/health`, Swagger UI — `http://localhost:3000/api/docs`, OpenAPI JSON — `http://localhost:3000/api/docs-json`.
+6. Запустите внутренний demo-web во втором терминале:
+
+   ```bash
+   pnpm web:dev
+   ```
+
+   Для проверки production-сборки:
+
+   ```bash
+   pnpm web:build
+   pnpm web:preview
+   ```
+
+Backend и frontend должны использовать одно и то же имя host. Значение по
+умолчанию demo-web — `http://127.0.0.1:3000/api/v1`; поэтому локальный CORS
+должен содержать точный origin `http://127.0.0.1:5173`. Не смешивайте
+`localhost` и `127.0.0.1`: при `SameSite=Strict` это разные sites.
+
+Demo-web доступен по адресу `http://127.0.0.1:5173`, API —
+`http://127.0.0.1:3000/api`, health endpoint —
+`http://127.0.0.1:3000/api/health`. Swagger UI —
+`http://127.0.0.1:3000/api/docs`, OpenAPI JSON —
+`http://127.0.0.1:3000/api/docs-json`. Swagger не является частью сценария
+показа заказчику.
 
 ## Первый администратор
 
@@ -100,15 +133,17 @@ Remove-Item Env:INITIAL_ADMIN_TOTP_SECRET
 ```
 
 Сохраните показанные recovery-коды вне репозитория. Сам bootstrap создаёт роль
-`ADMIN`, четыре системных permission (`ADMIN_READ`, `ADMIN_WRITE`,
-`AUDIT_READ`, `SECURITY_SELF`), Argon2id credential, TOTP и immutable audit
-event. Подробный протокол: `docs/delivery/ADMIN_API_SECURITY.md`.
+`ADMIN`, пять системных permission (`ADMIN_READ`, `ADMIN_WRITE`,
+`AUDIT_READ`, `SECURITY_SELF`, `VERSION_OVERRIDE`), Argon2id credential, TOTP
+и immutable audit event. Подробный протокол:
+`docs/delivery/ADMIN_API_SECURITY.md`.
 
 ## Миграции
 
-Database v1 и Stage 2 security baseline состоят из десяти последовательных
-reviewed migrations. Первые две фиксируют доменную базу; последующие восемь
-добавляют только security/integrity-инфраструктуру:
+Текущий baseline состоит из семнадцати последовательных reviewed migrations.
+Первые две фиксируют доменную базу, следующие одиннадцать — Admin security и
+runtime-role hardening, последние четыре — Public visibility/search/profile
+publication integrity:
 
 - `20260722201238_initial_database_v1` — исходная схема Database v1;
 - `20260722204033_mvp_database_stabilization` — безопасная корректировка approval FK и четыре индекса для каталогов/календаря.
@@ -118,7 +153,14 @@ reviewed migrations. Первые две фиксируют доменную б�
 - `20260724100000_postgres_rate_limit`;
 - `20260724101500_admin_idempotency`;
 - `20260724103000_optimistic_versions`;
-- `20260724104500_admin_permissions`.
+- `20260724104500_admin_permissions`;
+- `20260724110000_version_override_permission`;
+- `20260724111000_runtime_database_role`;
+- `20260724112000_runtime_role_hardening`;
+- `20260724113000_public_visibility_and_search_hardening`;
+- `20260724113100_result_metric_trigger_privileges`;
+- `20260724113200_public_function_execution_hardening`;
+- `20260724114000_profile_publication_workflow`.
 
 Для локального применения:
 
@@ -150,7 +192,11 @@ pnpm prisma:migrate:deploy
 | `pnpm test:e2e`              | E2E-тест с реальным локальным PostgreSQL               |
 | `pnpm test:db`               | PostgreSQL constraint tests на выделенной test-базе    |
 | `pnpm test:performance`      | Локальный opt-in smoke на 10 000 результатов           |
+| `pnpm test:runtime-role`     | Build + production smoke под restricted DB login       |
 | `pnpm openapi:export`        | Обновление versioned OpenAPI snapshot для frontend     |
+| `pnpm openapi:check`         | Проверка актуальности OpenAPI snapshot/checksum        |
+| `pnpm openapi:types`         | Генерация TypeScript API contract из OpenAPI           |
+| `pnpm openapi:types:check`   | Проверка актуальности generated TypeScript contract    |
 | `pnpm prisma:generate`       | Генерация Prisma Client                                |
 | `pnpm prisma:validate`       | Проверка Prisma schema                                 |
 | `pnpm prisma:format`         | Форматирование Prisma schema                           |
@@ -161,8 +207,20 @@ pnpm prisma:migrate:deploy
 | `pnpm db:up`                 | Запуск локального PostgreSQL с ожиданием healthcheck   |
 | `pnpm db:down`               | Остановка локального Compose-стека без удаления volume |
 | `pnpm db:logs`               | Поток логов PostgreSQL                                 |
+| `pnpm web:dev`               | Demo-web в Vite dev-режиме на `127.0.0.1:5173`         |
+| `pnpm web:preview`           | Локальный preview production-сборки demo-web           |
+| `pnpm web:format`            | Prettier для demo-web                                  |
+| `pnpm web:lint`              | ESLint для demo-web                                    |
+| `pnpm web:typecheck`         | Strict TypeScript для demo-web                         |
+| `pnpm web:test`              | Unit/component tests demo-web                          |
+| `pnpm web:build`             | Production-сборка demo-web                             |
 
 Команда `db:reset` намеренно отсутствует: случайный reset persistent local database несёт неоправданный риск потери данных.
+
+Production database-role provisioning отличается от локальной настройки
+`.env`. Перед использованием runtime credential выполните процедуру role
+membership, cross-database `CONNECT` isolation и SQL preflight из
+[`docs/delivery/ADMIN_API_SECURITY.md`](docs/delivery/ADMIN_API_SECURITY.md).
 
 ## Тестирование и quality gate
 
@@ -192,15 +250,23 @@ pnpm typecheck
 pnpm test
 pnpm test:db
 pnpm test:e2e
+pnpm openapi:check
+pnpm openapi:types:check
 pnpm build
+pnpm web:lint
+pnpm web:typecheck
+pnpm web:test
+pnpm web:build
 ```
 
 Не запускайте mutating suites из IDE с произвольной Jest-конфигурацией:
 официальные configs и сами suites выполняют одинаковую safety-проверку.
 
 Generic POST/PATCH для соревнований и результатов намеренно не принимает
-`publicationStatus`: публикация будет отдельным permission-protected и
-audit-atomic workflow на этапе Public API/CMS.
+`publicationStatus`. Отдельные Admin `publish`/`withdraw` commands защищены
+session, CSRF, optimistic version, explicit confirmation/reason и atomic audit.
+Полный Public API contract описан в
+[`docs/delivery/PUBLIC_API.md`](docs/delivery/PUBLIC_API.md).
 
 GitHub Actions использует ephemeral PostgreSQL 16 с непроизводственными credentials и выполняет migration, seed, constraint и HTTP E2E tests после обычных validate/generate/lint/typecheck/unit gates.
 
@@ -217,7 +283,9 @@ src/
   health/             health endpoint с реальным SELECT 1
   modules/auth/       session, 2FA, permissions, CSRF и lifecycle
   modules/audit/      read-only immutable administrative audit
+  modules/public-api/ published-only locale-scoped read projections
   modules/            доменные Admin controllers/services/strict DTO
+apps/demo-web/        защищённый React/Vite consumer Admin API
 prisma/               schema, reviewed migrations и idempotent demo seed
 test/                 HTTP/OpenAPI/concurrency E2E и PostgreSQL constraint tests
 docs/database/        предложения, audit, baseline, delete/index policy и migration safety
@@ -234,14 +302,14 @@ Pino пишет структурированные JSON-логи в production �
 ## Правила безопасности
 
 - `.env` и все его варианты исключены из Git; коммитить можно только `.env.example` без реальных секретов.
-- Не открывайте backend публично до завершения published-only Public API, CMS и
-  production release gates; Admin API уже защищён, но это не заменяет оставшиеся
+- Не открывайте backend публично до завершения CMS и production release gates;
+  Admin API и sports Public API уже изолированы, но это не заменяет оставшиеся
   этапы релиза.
 - Admin cookie — `HttpOnly`, `SameSite=Strict`, `Secure` в production. Все
   state-changing Admin-запросы требуют CSRF; POST также требует
   `Idempotency-Key`, PATCH — числовой `If-Match`.
-- Archive/restore, DELETE и `If-Match:*` требуют `X-Confirm-Action: true` и
-  `X-Action-Reason`.
+- Archive/restore, publish/withdraw, DELETE и `If-Match:*` требуют
+  `X-Confirm-Action: true` и `X-Action-Reason`.
 - Production Swagger либо выключается, либо защищается отдельными Basic
   credentials длиной не менее 16 символов.
 - Не используйте локальные credentials в staging/production.

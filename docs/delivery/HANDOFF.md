@@ -1,81 +1,47 @@
-# Передача комплекта FEM в разработку
+# Передача FEM demo-MVP
 
-Дата комплекта: 2026-07-23
+Дата актуализации: 2026-07-24
 
-## Что находится в архиве
+## Текущее состояние
 
-- рабочий NestJS backend foundation;
-- Prisma schema и reviewed PostgreSQL migrations;
-- unit, E2E и database constraint test foundation;
-- локальный Docker Compose для PostgreSQL;
-- CI quality gate;
-- архитектурные решения;
-- словарь данных, ER-диаграмма и правила БД;
-- аудит и план стабилизации Database v1;
-- стратегия тестирования;
-- единые критерии приёмки;
-- поэтапный план frontend/backend разработки.
-- текущий отчёт о пройденных проверках и известных блокерах сборки.
-- frontend design constitution и anti-patterns;
-- DTCG design tokens, Style Dictionary и Tokens Studio themes;
-- Stylelint, Playwright visual tests и Codex frontend preflight hook.
+Этапы 0–6 `FEM_MVP_ACCELERATED_PLAN.md` 3.0 завершены. Защищённый demo-web
+работает поверх реального Admin API и отдельной локальной demo/audit DB.
+Production-like локальный preview воспроизводится без Swagger, SQL, Prisma
+Studio или терминала в пользовательском сценарии.
 
-## С чего начать
+## Реализовано
 
-1. Прочитать `README.md`.
-2. Прочитать `AGENTS.md`, `docs/design-constitution.md`,
-   `docs/anti-patterns.md` и `tokens/README.md`.
-3. Проверить `docs/PROJECT_SPEC.md`.
-4. Просмотреть `docs/OPEN_QUESTIONS.md` и закрыть блокирующие решения.
-5. Использовать `docs/delivery/DEVELOPMENT_PLAN.md` как порядок реализации.
-6. Создать OpenAPI skeleton до ручного описания типов во frontend.
-7. Проверять готовность по `docs/delivery/ACCEPTANCE_CRITERIA.md`.
-8. Подключать проверки из `docs/delivery/TESTING_STRATEGY.md` по мере появления
-   модулей.
-9. До интеграции frontend устранить блокеры из
-   `docs/delivery/CURRENT_QUALITY_STATUS.md`.
+- NestJS/PostgreSQL/Prisma backend и защищённый Admin API;
+- auth/session/TOTP/permissions, CSRF, idempotency, optimistic concurrency,
+  audit и rate limiting;
+- OpenAPI snapshot и generated TypeScript consumer contract;
+- React/Vite demo-web с login/protected shell;
+- списки и карточки спортсменов и лошадей;
+- список соревнований и единое workspace соревнования;
+- категории/классы и результаты внутри соревнования;
+- server-side pagination/filter/sort с URL state;
+- create/update forms и безопасные frontend error states.
 
-## Границы текущей реализации
+## Последний подтверждённый gate
 
-Архив не является готовой production-системой. Database v1 и backend foundation
-подготовлены, но Public/Admin/Integration API, 2FA, публикационный workflow,
-frontend, импорт/экспорт, production-инфраструктура и часть доменных правил ещё
-должны быть реализованы.
+- Node 22.23.1 / pnpm 11.9.0 / PostgreSQL 16;
+- 17 migrations, repeatable guarded seed;
+- backend: 70 unit, 28 DB, 85 E2E, lint/typecheck/build — PASS;
+- OpenAPI snapshot/types — PASS;
+- demo-web: 11 tests, lint/typecheck/build — PASS;
+- desktop/mobile browser QA и safe mutation — PASS;
+- local production preview: `http://127.0.0.1:5173`.
 
-Frontend application code пока отсутствует. Design-system foundation является
-готовой основой для будущих `apps/public-web` и `apps/admin-web`, но не
-подменяет выбор и создание frontend framework shell.
+## Внешний preview
 
-## Важные ограничения
+Статус: **CONDITIONAL**. В репозитории нет hosting project/config, а доступ к
+внешней контролируемой среде, DNS/TLS и deployment secrets не предоставлен.
+Это access blocker, а не основание создавать случайный публичный deployment.
 
-- не подключать локальные тесты к production database;
-- не добавлять реальные секреты в `.env.example` или репозиторий;
-- не использовать `prisma migrate dev` против staging/production;
-- не генерировать официальные идентификаторы автоматически;
-- не публиковать рейтинг до утверждения формулы или официального источника;
-- не переносить закрытые поля в Public API;
-- не менять схему без отдельной reviewed migration;
-- не начинать frontend с ручных типов, расходящихся с OpenAPI.
+Для завершения Этапа 7 используйте `docs/progress/NEXT_ACTION.md`.
 
-## Минимальная локальная проверка
+## Scope guard
 
-```bash
-pnpm install
-cp .env.example .env
-pnpm db:up
-pnpm prisma:validate
-pnpm prisma:generate
-pnpm prisma:migrate:dev
-pnpm prisma:seed
-pnpm lint
-pnpm typecheck
-pnpm test
-pnpm test:e2e
-pnpm build
-pnpm frontend:check
-pnpm exec playwright install chromium
-pnpm frontend:quality
-```
-
-Для `test:db` используется только отдельная тестовая база, как описано в
-`README.md`.
+Не расширять Public API и не добавлять public website, dashboard, CMS,
+Excel/import, ranking, owners UI либо отдельные class/result pages до
+подтверждённой обратной связи по demo.

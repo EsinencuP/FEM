@@ -23,7 +23,7 @@ export function AdminProtected(): ClassDecorator & MethodDecorator {
       name: 'If-Match',
       required: false,
       description:
-        'Required positive resource version for PATCH; * requires confirmation and reason',
+        'Required positive resource version for PATCH; * additionally requires VERSION_OVERRIDE, confirmation and reason',
     }),
     ApiHeader({
       name: 'Idempotency-Key',

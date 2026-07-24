@@ -111,11 +111,7 @@ export class AuthController {
     @Param('sessionId', new ParseUUIDPipe({ version: '4' })) sessionId: string,
     @Req() request: AuthenticatedRequest,
   ): Promise<void> {
-    return this.auth.revokeSession(
-      this.requireAdmin(request),
-      sessionId,
-      this.metadata(request),
-    );
+    return this.auth.revokeSession(this.requireAdmin(request), sessionId, this.metadata(request));
   }
 
   @Post('password')
@@ -139,11 +135,7 @@ export class AuthController {
     @Body() dto: RotateRecoveryCodesDto,
     @Req() request: AuthenticatedRequest,
   ): ReturnType<AuthService['rotateRecoveryCodes']> {
-    return this.auth.rotateRecoveryCodes(
-      this.requireAdmin(request),
-      dto,
-      this.metadata(request),
-    );
+    return this.auth.rotateRecoveryCodes(this.requireAdmin(request), dto, this.metadata(request));
   }
 
   @Post('totp/re-enrollment')
@@ -155,11 +147,7 @@ export class AuthController {
     @Body() dto: StartTotpReenrollmentDto,
     @Req() request: AuthenticatedRequest,
   ): ReturnType<AuthService['startTotpReenrollment']> {
-    return this.auth.startTotpReenrollment(
-      this.requireAdmin(request),
-      dto,
-      this.metadata(request),
-    );
+    return this.auth.startTotpReenrollment(this.requireAdmin(request), dto, this.metadata(request));
   }
 
   @Post('totp/re-enrollment/confirm')

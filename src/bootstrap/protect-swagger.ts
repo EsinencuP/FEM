@@ -16,10 +16,7 @@ function safeEqual(left: string, right: string): boolean {
   return leftBuffer.length === rightBuffer.length && timingSafeEqual(leftBuffer, rightBuffer);
 }
 
-export function protectSwagger(
-  app: NestExpressApplication,
-  config: SwaggerProtectionConfig,
-): void {
+export function protectSwagger(app: NestExpressApplication, config: SwaggerProtectionConfig): void {
   if (!config.isProduction) return;
   const username = config.swaggerUsername;
   const password = config.swaggerPassword;

@@ -4,7 +4,8 @@ import { ExecutionContextHost } from '@nestjs/core/helpers/execution-context-hos
 import { ApiExceptionFilter } from './api-exception.filter';
 
 interface TestResponse {
-  getHeader(): string;
+  getHeader(name: string): string | undefined;
+  setHeader(name: string, value: string): TestResponse;
   status(value: number): TestResponse;
   json(value: unknown): TestResponse;
 }
@@ -12,11 +13,22 @@ interface TestResponse {
 describe('ApiExceptionFilter', () => {
   const filter = new ApiExceptionFilter();
 
-  function capture(error: unknown): { statusCode: number; body: unknown } {
+  function capture(error: unknown): {
+    statusCode: number;
+    body: unknown;
+    headers: Record<string, string>;
+  } {
     let statusCode = 0;
     let body: unknown;
+    const headers: Record<string, string> = {
+      'x-request-id': 'filter-test-request',
+    };
     const response: TestResponse = {
-      getHeader: (): string => 'filter-test-request',
+      getHeader: (name: string): string | undefined => headers[name.toLowerCase()],
+      setHeader: (name: string, value: string): TestResponse => {
+        headers[name.toLowerCase()] = value;
+        return response;
+      },
       status: (value: number): TestResponse => {
         statusCode = value;
         return response;
@@ -31,7 +43,7 @@ describe('ApiExceptionFilter', () => {
     host.setType('http');
 
     filter.catch(error, host);
-    return { statusCode, body };
+    return { statusCode, body, headers };
   }
 
   it.each(['P1001', 'P1002', 'P1008', 'P1017', 'P2024'])(
@@ -48,6 +60,9 @@ describe('ApiExceptionFilter', () => {
           code: 'DATABASE_UNAVAILABLE',
           message: 'Database is temporarily unavailable',
           requestId: 'filter-test-request',
+        },
+        headers: {
+          'cache-control': 'no-store',
         },
       });
     },

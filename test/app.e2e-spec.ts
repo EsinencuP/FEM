@@ -6,9 +6,7 @@ import { z } from 'zod';
 import { AppModule } from '../src/app.module';
 import { configureHttpApplication } from '../src/bootstrap/configure-http-application';
 import { AppConfigService } from '../src/config/app-config.service';
-import {
-  createAdminTestClient,
-} from './setup/admin-test-client';
+import { createAdminTestClient } from './setup/admin-test-client';
 import type { AdminTestClient } from './setup/admin-test-client';
 
 const healthResponseSchema = z.object({
@@ -137,6 +135,99 @@ describe('Application (e2e)', () => {
       .get(`/api/v1/admin/athletes/${athleteId}/identifiers`)
       .query({ page: 1, limit: 101 })
       .expect(400);
+  });
+
+  it('returns presentation-ready Admin projections for athlete and horse screens', async () => {
+    const athleteResponse = await adminRequest
+      .get('/api/v1/admin/athletes')
+      .query({ search: 'Ана Ротару', page: 1, limit: 1 })
+      .expect(200);
+    const athlete = z
+      .object({
+        data: z
+          .array(
+            z.object({
+              id: z.uuid(),
+              displayName: z.literal('Ана Ротару'),
+              currentClubs: z
+                .array(
+                  z.object({
+                    id: z.uuid(),
+                    club: z.object({ id: z.uuid(), name: z.string().min(1) }),
+                  }),
+                )
+                .min(1),
+              primaryIdentifier: z.object({
+                identifierType: z.literal('DEMO_RECORD_CODE'),
+                namespace: z.literal('FEM_DEMO'),
+                value: z.literal('ATH-001'),
+              }),
+            }),
+          )
+          .length(1),
+      })
+      .parse(athleteResponse.body).data[0];
+    if (!athlete) throw new Error('Presentation athlete fixture is required');
+
+    const horseResponse = await adminRequest
+      .get('/api/v1/admin/horses')
+      .query({ search: 'Aurora de Codru', page: 1, limit: 1 })
+      .expect(200);
+    const horse = z
+      .object({
+        data: z
+          .array(
+            z.object({
+              id: z.uuid(),
+              displayName: z.literal('Aurora de Codru'),
+              primaryIdentifier: z.object({
+                identifierType: z.literal('DEMO_RECORD_CODE'),
+                namespace: z.literal('FEM_DEMO'),
+                value: z.literal('HRS-001'),
+              }),
+            }),
+          )
+          .length(1),
+      })
+      .parse(horseResponse.body).data[0];
+    if (!horse) throw new Error('Presentation horse fixture is required');
+
+    const horseDetail = await adminRequest.get(`/api/v1/admin/horses/${horse.id}`).expect(200);
+    expect(
+      z
+        .object({
+          data: z.object({
+            competitionResults: z
+              .array(
+                z.object({
+                  competitionClass: z.object({
+                    id: z.uuid(),
+                    title: z.string().min(1),
+                    competitionEvent: z.object({
+                      id: z.uuid(),
+                      title: z.string().min(1),
+                      slug: z.string().min(1),
+                    }),
+                  }),
+                  athlete: z.object({ id: z.uuid(), displayName: z.string().min(1) }),
+                }),
+              )
+              .min(1),
+            externalIdentifiers: z
+              .array(
+                z.object({
+                  identifierType: z.string(),
+                  namespace: z.string(),
+                  value: z.string(),
+                }),
+              )
+              .min(1),
+          }),
+        })
+        .parse(horseDetail.body).data,
+    ).toMatchObject({
+      externalIdentifiers: [{ value: 'HRS-001' }],
+    });
   });
 
   it('returns the documented competition event projection in nested results', async () => {

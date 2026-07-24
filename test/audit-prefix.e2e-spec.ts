@@ -48,9 +48,8 @@ describe('ADMIN audit with a configurable API prefix (e2e)', () => {
         otp: authenticator.generate(identity.secret),
       })
       .expect(200);
-    const csrfToken = z
-      .object({ data: z.object({ csrfToken: z.string() }) })
-      .parse(login.body).data.csrfToken;
+    const csrfToken = z.object({ data: z.object({ csrfToken: z.string() }) }).parse(login.body)
+      .data.csrfToken;
     const sessionCookie = login.headers['set-cookie']?.[0]?.split(';', 1)[0];
     if (!sessionCookie) throw new Error('Login did not return the administrator session cookie');
     const requestId = randomUUID();
@@ -63,9 +62,7 @@ describe('ADMIN audit with a configurable API prefix (e2e)', () => {
       .set('Idempotency-Key', randomUUID())
       .send({ code: `PREFIX_${suffix}`, name: `Prefix ${suffix}` })
       .expect(201);
-    const entityId = z
-      .object({ data: z.object({ id: z.uuid() }) })
-      .parse(created.body).data.id;
+    const entityId = z.object({ data: z.object({ id: z.uuid() }) }).parse(created.body).data.id;
 
     await expect(
       prisma.auditLog.findFirstOrThrow({

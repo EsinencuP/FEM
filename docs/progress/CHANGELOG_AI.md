@@ -49,3 +49,179 @@
 - Independent Senior Review returned `STRICT GO` for Frontend Integration
   Readiness.
 - Public exposure remains prohibited until Admin Protection is complete.
+
+## 2026-07-24 — Stage 2 Admin Protection candidate
+
+- Moved the domain surface to `/api/v1/admin/*` and added opaque
+  PostgreSQL-backed Admin sessions with Argon2id, TOTP/recovery 2FA, lockout,
+  rotation, revocation and re-enrollment.
+- Added persisted permission mappings and separate Admin read/write, audit-read
+  and own-security checks.
+- Added CSRF, exact credentialed CORS, Helmet, proxy/HSTS controls and protected
+  production Swagger.
+- Added PostgreSQL-backed multi-instance rate limits.
+- Added transaction-atomic, redacted, append-only audit.
+- Added mandatory Admin POST idempotency and numeric PATCH optimistic versions.
+- Closed recovery/TOTP/password concurrency races with single-use transactional
+  factor claims.
+- Added ten additive security/integrity migrations after the original
+  database baseline; no historical migration was rewritten.
+- Added targeted auth, lifecycle, hardening, permission, throttle, audit,
+  idempotency and concurrency regressions.
+- Stage 2 remains open pending the clean full gate and independent review.
+
+## 2026-07-24 — Stage 2 clean local gate
+
+- Created isolated local `fem_audit_release_stage2` without altering any
+  existing database.
+- Applied the then-current ten migrations from empty PostgreSQL and ran demo
+  seed three times
+  with stable counts.
+- Passed lint, typecheck, 69 unit, 22 database and 63 E2E tests.
+- Passed build, OpenAPI export/check (71 paths, 97 operations, 126 schemas) and
+  compiled runtime smoke.
+- Refreshed Graphify to 1,886 nodes, 3,730 edges and 130 communities; no import
+  cycle was detected.
+- Stage 2 remains open until both independent reviews are reconciled.
+
+## 2026-07-24 — Stage 2 independent-review remediation
+
+- Corrected rate-limit storage so an active `blockedUntil` survives expiry of
+  the original counting window; added an HTTP regression.
+- Added a separate `VERSION_OVERRIDE` permission for confirmed
+  `If-Match: *` operations and a negative authorization regression.
+- Added a migration-owned NOLOGIN `fem_runtime` capability role, revoked
+  schema DDL and AuditLog mutation rights, and made production startup reject
+  privileged runtime credentials.
+- Added a real restricted-login database test proving ordinary DML while
+  rejecting AuditLog mutation, trigger disable and trigger drop.
+- Three additional additive migrations bring the current chain to thirteen.
+- A clean 13-migration replay, seed x3, 69 unit, 24 DB, 66 E2E, build, OpenAPI
+  and restricted production runtime smoke passed.
+- Stage 2 remains open pending renewed independent review.
+
+## 2026-07-24 — Stage 2 second independent-review remediation
+
+- Removed the unsafe intermediate blanket database-role grant from the
+  unpublished migration chain; the first role migration now creates only the
+  final database-scoped explicit privilege matrix.
+- Production startup now rejects dangerous login attributes, any unexpected
+  membership, direct excess grants, capability ownership and default ACLs.
+- Added adversarial partial-migration, ownership/default-ACL and complete table
+  privilege-matrix coverage.
+- Bounded rate-limit cleanup to 500 rows with `SKIP LOCKED`, failure isolation
+  and a 750-row two-instance regression.
+- Added bounded idempotency payload retention and active/expired record tests.
+- Enforced current-source build plus restricted production runtime smoke in CI
+  with an ephemeral port.
+- Clean `fem_audit_release_stage2_gate3` evidence: 13 migrations, seed x3,
+  69 unit, 25 DB and 67 E2E tests, OpenAPI and production runtime smoke.
+- Refreshed Graphify to 1,911 nodes, 3,785 edges and 132 communities.
+
+## 2026-07-24 — Stage 2 strict GO
+
+- Replaced the unpublished runtime-role draft with a database-scoped,
+  explicit least-privilege capability and fail-closed production startup.
+- Added exact membership options, complete table/column ACL and grant-option
+  checks, PUBLIC/system ACL provenance, ownership/default-ACL, dangerous-GUC
+  and cross-database isolation checks.
+- Added adversarial regressions for missing/excess/direct/PUBLIC ACL,
+  migration-history views, system functions/catalogs, parameter privileges,
+  object ownership and adjacent databases.
+- Final clean `fem_audit_release_stage2_gate5` evidence: 13 migrations,
+  seed x3, lint/typecheck, 69 unit, 25 DB, 67 E2E, OpenAPI check, build and
+  restricted compiled runtime smoke.
+- Three independent strict reviewers reported zero open
+  BLOCKER/CRITICAL/HIGH. Stage 2 is closed; work moved directly to Stage 3.
+
+## 2026-07-24 — Public API hardening and clean gate
+
+- Added separate locale-scoped Public projections for countries, disciplines,
+  clubs, athletes, horses, competitions, classes and results.
+- Added explicit publish/withdraw workflows for public profiles, events and
+  results; demo rows cannot be published and dependency closure fails closed.
+- Added profile publication constraints/indexes, ResultMetric demo-boundary
+  trigger, trigram search indexes and restricted function privileges.
+- Public responses use ETag with mandatory revalidation; errors use
+  `no-store`; lists use `REPEATABLE READ`.
+- Clean `fem_audit_release_stage3_gate4` evidence: 17 migrations, seed x3,
+  lint/typecheck, 69 unit, 27 DB and 84 E2E tests, OpenAPI check, build,
+  runtime-role smoke and guarded performance audit.
+
+## 2026-07-24 — DB-first demo documentation baseline
+
+- Integrated the package from `Downloads/new dock` according to
+  `DOCS_REPLACEMENT_MAP.md`.
+- Added `FEM_MVP_ACCELERATED_PLAN.md` version 3.0 and replaced the active
+  acceptance, delivery and progress documents without deleting historical
+  stabilization/database evidence.
+- Reconciled package claims with current code: the Public API already exists
+  and remains regression-tested, but it is not expanded or consumed by the
+  first protected demo-web.
+- Updated current quality/session/handoff facts to the latest Node 22 clean
+  gate instead of retaining the package's stale Node 24/10-migration baseline.
+- Removed two non-canonical duplicate documents from `docs/`; the root plan and
+  replacement map remain the single sources of truth.
+- Refreshed Graphify with deletion pruning to 2130 nodes, 4464 edges and 137
+  communities; stale duplicate document nodes are absent.
+- Re-ran the docs-only regression gate on Node 22.23.1: lint, strict typecheck,
+  9 unit suites / 69 tests and production build all pass.
+
+## 2026-07-24 — DB-first demo Stage 0 and Stage 1
+
+- Accepted `FEM_MVP_ACCELERATED_PLAN.md` 3.0 as the active scope.
+- Fixed provisional RU language, fictional demo-data policy, visible columns,
+  minimal forms, four explicitly demo categories and a safe competition venue
+  update without representing them as official FEM decisions.
+- Mapped every demo step to one of seven frontend routes and the protected
+  Admin API; no dashboard, owners, CMS or Public API route was added.
+- Stage 0 contract gate passed.
+- Stage 1 Node 22.23.1 gate passed: Prisma validate/generate, lint, strict
+  typecheck, 9 unit suites / 69 tests and production build.
+
+## 2026-07-24 — DB-first demo Stage 2 and Stage 3
+
+- Applied all 17 migrations from empty PostgreSQL 16 to isolated local
+  `fem_audit_demo_stage2_20260724223427`; no development database was reset.
+- Expanded the repeatable presentation seed to 4 clubs, 16 fictional athletes,
+  16 fictional horses, 12 classes and 60 linked results with four provisional
+  categories and three levels.
+- Added internal demo identifiers under `FEM_DEMO/DEMO_RECORD_CODE` without
+  generating FEI, passport or microchip identifiers.
+- Added batched Athlete `currentClubs`/`primaryIdentifier`, Horse
+  `primaryIdentifier`, and bounded Horse detail result/identifier projections.
+- Added explicit OpenAPI `AthleteListItem` and `HorseListItem` schemas and
+  generated `api-client/generated/schema.d.ts` with CI drift verification.
+- Stabilized test tooling, Prisma P2034 recognition/backoff and PostgreSQL
+  rate-limit contention with per-bucket transaction advisory locks.
+- Final gate passed: Prisma format/validate/generate, lint, typecheck, 10 unit
+  suites / 70 tests, 2 DB suites / 28 tests, 12 E2E suites / 85 tests, OpenAPI
+  check, generated types check, restricted runtime-role smoke and build.
+- Этапы 0–3 завершены со статусом PASS. Frontend не создавался; следующая
+  разрешённая работа — Этап 4.
+
+## 2026-07-24 — DB-first demo Stage 4–7
+
+- Added one scoped React/Vite workspace at `apps/demo-web`; no dashboard,
+  public website, CMS, Excel, ranking, owners UI or standalone class/result
+  pages were created.
+- Implemented protected login/shell and seven routes for athletes, horses and
+  competitions, with classes/categories and results embedded in the
+  competition workspace.
+- Added OpenAPI-derived consumer types, credentialed API client, CSRF,
+  `Idempotency-Key`, `If-Match`, server-side pagination/filter/sort, URL state,
+  semantic tables and safe loading/empty/error/not-found UI.
+- Extended the existing CI gate with demo-web lint, strict typecheck, tests and
+  production build after the frozen workspace install.
+- Fixed three integration defects found during browser review: cross-host
+  SameSite cookie mismatch, unsupported nested sort parameters and lookup
+  status filtering that rejected countries or hid demo DRAFT references.
+- Verified a safe competition venue update against the real Admin API and
+  isolated demo/audit DB; no Prisma schema or migration was changed.
+- Final backend gate: 70 unit, 28 DB and 85 E2E tests plus Prisma,
+  lint/typecheck/OpenAPI/build PASS.
+- Final demo-web gate: 11 tests, lint/typecheck/build PASS; browser QA covered
+  login, seven routes, direct links, Back/Forward, 404/requestId, pagination
+  limits 1/100 and 1280/390 layouts.
+- Stages 4–6: PASS. Stage 7 local production preview: PASS. External HTTPS
+  preview: CONDITIONAL because hosting/DNS/TLS/secret access is not available.

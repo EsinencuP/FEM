@@ -9,6 +9,7 @@ const ADMIN_PERMISSIONS = [
   ['ADMIN_WRITE', 'Change administrative data'],
   ['AUDIT_READ', 'Read audit log'],
   ['SECURITY_SELF', 'Manage own security'],
+  ['VERSION_OVERRIDE', 'Override optimistic version'],
 ] as const;
 
 function requiredEnvironment(name: string): string {
@@ -123,7 +124,9 @@ async function bootstrapAdmin(): Promise<void> {
   });
 
   process.stdout.write(`Administrator ${userId} created.\n`);
-  process.stdout.write('Store these one-time recovery codes securely; they will not be shown again:\n');
+  process.stdout.write(
+    'Store these one-time recovery codes securely; they will not be shown again:\n',
+  );
   process.stdout.write(`${recoveryCodes.join('\n')}\n`);
 }
 

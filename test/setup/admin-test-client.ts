@@ -15,6 +15,7 @@ const ADMIN_PERMISSIONS = [
   ['ADMIN_WRITE', 'Change administrative data'],
   ['AUDIT_READ', 'Read audit log'],
   ['SECURITY_SELF', 'Manage own security'],
+  ['VERSION_OVERRIDE', 'Override optimistic version'],
 ] as const;
 
 export interface ProvisionedAdmin {
@@ -171,9 +172,7 @@ export async function provisionAdminTestIdentity(
   };
 }
 
-export async function createAdminTestClient(
-  app: NestExpressApplication,
-): Promise<AdminTestClient> {
+export async function createAdminTestClient(app: NestExpressApplication): Promise<AdminTestClient> {
   const identity = await provisionAdminTestIdentity(app);
   const agent = request.agent(app.getHttpServer());
   const otp = authenticator.generate(identity.secret);

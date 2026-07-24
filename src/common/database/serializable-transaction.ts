@@ -1,27 +1,40 @@
-import { ConflictException } from '@nestjs/common';
+import { ConflictException, Logger } from '@nestjs/common';
 import { Prisma, type PrismaClient } from '@prisma/client';
 
-import {
-  RequestAuditContext,
-  type RequestAuditState,
-} from '../context/request-audit-context';
+import { RequestAuditContext, type RequestAuditState } from '../context/request-audit-context';
 import { IdempotentReplayException } from '../exceptions/idempotent-replay.exception';
 import { hashToken } from '../security/security-crypto';
 
 const DEFAULT_MAX_ATTEMPTS = 3;
+const RETRY_BASE_DELAY_MS = 5;
+const RETRY_MAX_DELAY_MS = 100;
 const UUID_PATTERN = /[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/gi;
 const ADMIN_ROUTE_PATTERN = /\/v1\/admin(?:\/|$)/;
 const IDEMPOTENCY_TTL_MS = 24 * 60 * 60_000;
-const SENSITIVE_AUDIT_KEY =
-  /password|authorization|cookie|csrf|token|secret|otp|recovery/i;
+const IDEMPOTENCY_CLEANUP_INTERVAL = 16;
+const IDEMPOTENCY_CLEANUP_BATCH = 250;
+const SENSITIVE_AUDIT_KEY = /password|authorization|cookie|csrf|token|secret|otp|recovery/i;
+const transactionLogger = new Logger('SerializableTransaction');
+let idempotencyOperationsSinceCleanup = 0;
 
-type SafeJson =
-  | string
-  | number
-  | boolean
-  | null
-  | SafeJson[]
-  | { [key: string]: SafeJson };
+async function waitBeforeSerializableRetry(attempt: number): Promise<void> {
+  const exponentialDelay = Math.min(
+    RETRY_MAX_DELAY_MS,
+    RETRY_BASE_DELAY_MS * 2 ** Math.max(0, attempt - 1),
+  );
+  const jitter = Math.floor(Math.random() * RETRY_BASE_DELAY_MS);
+  await new Promise<void>((resolve) => {
+    setTimeout(resolve, exponentialDelay + jitter);
+  });
+}
+
+function prismaErrorCode(error: unknown): string | undefined {
+  if (typeof error !== 'object' || error === null || !('code' in error)) return undefined;
+  const code = (error as { code?: unknown }).code;
+  return typeof code === 'string' ? code : undefined;
+}
+
+type SafeJson = string | number | boolean | null | SafeJson[] | { [key: string]: SafeJson };
 
 function safeJson(value: unknown, key = '', depth = 0): SafeJson {
   if (SENSITIVE_AUDIT_KEY.test(key)) return '[REDACTED]';
@@ -35,10 +48,7 @@ function safeJson(value: unknown, key = '', depth = 0): SafeJson {
     return value.slice(0, 100).map((entry) => safeJson(entry, '', depth + 1));
   }
   if (typeof value === 'object') {
-    if (
-      'toJSON' in value &&
-      typeof (value as { toJSON?: unknown }).toJSON === 'function'
-    ) {
+    if ('toJSON' in value && typeof (value as { toJSON?: unknown }).toJSON === 'function') {
       return safeJson((value as { toJSON(): unknown }).toJSON(), key, depth + 1);
     }
     const result: Record<string, SafeJson> = {};
@@ -54,9 +64,7 @@ function safeJson(value: unknown, key = '', depth = 0): SafeJson {
 
 function safeJsonObject(value: unknown): Prisma.InputJsonObject {
   const json = safeJson(value);
-  return typeof json === 'object' && json !== null && !Array.isArray(json)
-    ? json
-    : { value: json };
+  return typeof json === 'object' && json !== null && !Array.isArray(json) ? json : { value: json };
 }
 
 function responseEntityId(value: unknown): string | undefined {
@@ -116,12 +124,14 @@ function adminMutationContext(): RequestAuditState | undefined {
   return context;
 }
 
-function idempotencyContext(): (RequestAuditState & {
-  actorId: string;
-  sessionId: string;
-  idempotencyKey: string;
-  requestHash: string;
-}) | undefined {
+function idempotencyContext():
+  | (RequestAuditState & {
+      actorId: string;
+      sessionId: string;
+      idempotencyKey: string;
+      requestHash: string;
+    })
+  | undefined {
   const context = adminMutationContext();
   if (
     context?.method !== 'POST' ||
@@ -257,7 +267,9 @@ async function claimExpectedVersion(
       count = (await transaction.horseOwnership.updateMany({ where, data })).count;
       break;
     default:
-      return;
+      throw new Error(
+        `Admin PATCH resource is not registered for optimistic version enforcement: ${entityType}`,
+      );
   }
   if (count !== 1) {
     throw new ConflictException({
@@ -279,15 +291,19 @@ async function writeAtomicAdminAudit(
   const pathIds = context.path.match(UUID_PATTERN) ?? [];
   const entityId = responseEntityId(result) ?? pathIds.at(-1);
   if (!entityId) throw new Error('Administrative mutation audit could not resolve entity id');
-  const action = context.path.endsWith('/archive')
-    ? 'ARCHIVE'
-    : context.path.endsWith('/restore')
-      ? 'RESTORE'
-      : context.method === 'POST'
-        ? 'CREATE'
-        : context.method === 'DELETE'
-          ? 'DELETE'
-          : 'UPDATE';
+  const action = context.path.endsWith('/publish')
+    ? 'PUBLISH'
+    : context.path.endsWith('/withdraw')
+      ? 'WITHDRAW'
+      : context.path.endsWith('/archive')
+        ? 'ARCHIVE'
+        : context.path.endsWith('/restore')
+          ? 'RESTORE'
+          : context.method === 'POST'
+            ? 'CREATE'
+            : context.method === 'DELETE'
+              ? 'DELETE'
+              : 'UPDATE';
   await transaction.auditLog.create({
     data: {
       actorId,
@@ -307,11 +323,39 @@ async function writeAtomicAdminAudit(
   });
 }
 
+async function pruneExpiredIdempotencyRecords(prisma: PrismaClient): Promise<void> {
+  try {
+    const deleted = await prisma.$executeRaw(Prisma.sql`
+      WITH expired AS (
+        SELECT "id"
+        FROM "IdempotencyRecord"
+        WHERE "expiresAt" <= CURRENT_TIMESTAMP
+        ORDER BY "expiresAt", "id"
+        LIMIT ${IDEMPOTENCY_CLEANUP_BATCH}
+        FOR UPDATE SKIP LOCKED
+      )
+      DELETE FROM "IdempotencyRecord" record
+      USING expired
+      WHERE record."id" = expired."id"
+    `);
+    if (deleted > 0) transactionLogger.debug(`Pruned ${deleted} expired idempotency records`);
+  } catch {
+    transactionLogger.warn('Expired idempotency cleanup failed; request processing continues');
+  }
+}
+
 export async function withSerializableTransaction<T>(
   prisma: PrismaClient,
   operation: (transaction: Prisma.TransactionClient) => Promise<T>,
   maxAttempts = DEFAULT_MAX_ATTEMPTS,
 ): Promise<T> {
+  if (idempotencyContext()) {
+    idempotencyOperationsSinceCleanup += 1;
+    if (idempotencyOperationsSinceCleanup >= IDEMPOTENCY_CLEANUP_INTERVAL) {
+      idempotencyOperationsSinceCleanup = 0;
+      await pruneExpiredIdempotencyRecords(prisma);
+    }
+  }
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     try {
       return await prisma.$transaction(
@@ -333,19 +377,14 @@ export async function withSerializableTransaction<T>(
                   code: 'IDEMPOTENCY_KEY_CONFLICT',
                 });
               }
-              throw new IdempotentReplayException(
-                existing.responseStatus,
-                existing.responseBody,
-              );
+              throw new IdempotentReplayException(existing.responseStatus, existing.responseBody);
             }
             if (existing) {
               await transaction.idempotencyRecord.delete({ where: { id: existing.id } });
             }
           }
           const context = adminMutationContext();
-          const oldData = context
-            ? await readAuditSnapshot(transaction, context)
-            : undefined;
+          const oldData = context ? await readAuditSnapshot(transaction, context) : undefined;
           if (context) await claimExpectedVersion(transaction, context);
           const result = await operation(transaction);
           await writeAtomicAdminAudit(transaction, result, oldData);
@@ -372,11 +411,11 @@ export async function withSerializableTransaction<T>(
         },
       );
     } catch (error: unknown) {
+      const errorCode = prismaErrorCode(error);
       const retryable =
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        (error.code === 'P2034' ||
-          (error.code === 'P2002' && idempotencyContext() !== undefined));
+        errorCode === 'P2034' || (errorCode === 'P2002' && idempotencyContext() !== undefined);
       if (!retryable || attempt === maxAttempts) throw error;
+      await waitBeforeSerializableRetry(attempt);
     }
   }
 

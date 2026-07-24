@@ -11,10 +11,7 @@ import { assertSafeTestDatabaseEnvironment } from '../src/common/database/databa
 import { hashToken, randomToken } from '../src/common/security/security-crypto';
 import { AppConfigService } from '../src/config/app-config.service';
 import { PrismaService } from '../src/database/prisma.service';
-import {
-  provisionAdminTestIdentity,
-  type ProvisionedAdmin,
-} from './setup/admin-test-client';
+import { provisionAdminTestIdentity, type ProvisionedAdmin } from './setup/admin-test-client';
 
 const authenticatedSchema = z.object({
   data: z.object({
@@ -135,14 +132,8 @@ describe('ADMIN authentication hardening (e2e)', () => {
       },
     });
     const attempts = await Promise.all([
-      agent
-        .post('/api/v1/auth/recovery-codes')
-        .set('X-CSRF-Token', csrfToken)
-        .send({ otp }),
-      agent
-        .post('/api/v1/auth/recovery-codes')
-        .set('X-CSRF-Token', csrfToken)
-        .send({ otp }),
+      agent.post('/api/v1/auth/recovery-codes').set('X-CSRF-Token', csrfToken).send({ otp }),
+      agent.post('/api/v1/auth/recovery-codes').set('X-CSRF-Token', csrfToken).send({ otp }),
     ]);
 
     expect(attempts.map(({ status }) => status).sort()).toEqual([200, 401]);

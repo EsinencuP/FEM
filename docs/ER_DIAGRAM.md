@@ -1,4 +1,4 @@
-# Database v1 ER Diagram
+# Database v1 + Admin Security ER Diagram
 
 The diagram shows storage relationships, not authorization, registration or a ranking-calculation process. Polymorphic `ExternalIdentifier`, `AuditLog` and `ImportRow` targets are intentionally not drawn as database foreign keys.
 
@@ -6,6 +6,14 @@ The diagram shows storage relationships, not authorization, registration or a ra
 erDiagram
     User ||--o{ UserRole : receives
     Role ||--o{ UserRole : assigns
+    Role ||--o{ RolePermission : grants
+    Permission ||--o{ RolePermission : included_in
+    User ||--o| UserCredential : authenticates
+    User ||--o{ AdminSession : opens
+    User ||--o{ AdminRecoveryCode : owns
+    User ||--o{ IdempotencyRecord : submits
+    AdminSession ||--o{ IdempotencyRecord : scopes
+    AdminSession o|--o{ AuditLog : correlates
     User o|--o{ AuditLog : acts
     User o|--o{ ImportBatch : creates
     User o|--o{ CompetitionResult : approves
@@ -67,3 +75,7 @@ erDiagram
 - Athlete/horse pair ranking entries use both FKs, not a fabricated pair identifier.
 - Archive does not cascade into relation history, results, identifiers or rankings.
 - Approval actor relations are restrictive; presentation-media and non-approval optional actor relations may use `SET NULL`.
+- Authentication/audit/idempotency and role-permission relations are
+  restrictive; no credential or security token is represented in public DTOs.
+- `RateLimitBucket` is intentionally isolated technical state keyed by the
+  throttler/client window and has no domain foreign key.
