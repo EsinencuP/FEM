@@ -1,4 +1,10 @@
-import { Module } from '@nestjs/common';
+import { type ExecutionContext, Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
+import {
+  ThrottlerGuard,
+  ThrottlerModule,
+  ThrottlerStorage,
+} from '@nestjs/throttler';
 import { LoggerModule } from 'nestjs-pino';
 
 import { AppConfigModule } from './config/app-config.module';
@@ -15,6 +21,14 @@ import { CountriesModule } from './modules/countries/countries.module';
 import { DisciplinesModule } from './modules/disciplines/disciplines.module';
 import { HorsesModule } from './modules/horses/horses.module';
 import { OwnersModule } from './modules/owners/owners.module';
+import { AuthModule } from './modules/auth/auth.module';
+import { PostgresThrottlerStorage } from './common/security/postgres-throttler-storage';
+import { AuditModule } from './modules/audit/audit.module';
+
+function requestPath(context: ExecutionContext): string {
+  const request = context.switchToHttp().getRequest<{ originalUrl?: unknown }>();
+  return typeof request.originalUrl === 'string' ? request.originalUrl : '';
+}
 
 @Module({
   imports: [
@@ -24,8 +38,63 @@ import { OwnersModule } from './modules/owners/owners.module';
       inject: [AppConfigService],
       useFactory: createPinoConfig,
     }),
+    ThrottlerModule.forRootAsync({
+      imports: [AppConfigModule],
+      inject: [AppConfigService],
+      useFactory: (config: AppConfigService) => ({
+        throttlers: [
+          { name: 'default', ttl: 60_000, limit: config.rateLimitDefaultPerMinute },
+          {
+            name: 'auth',
+            ttl: 60_000,
+            limit: config.rateLimitAuthPerMinute,
+            skipIf: (context: ExecutionContext): boolean =>
+              !/\/v1\/auth\/login(?:\?|$)/.test(requestPath(context)),
+          },
+          {
+            name: 'admin',
+            ttl: 60_000,
+            limit: config.rateLimitAdminPerMinute,
+            skipIf: (context: ExecutionContext): boolean =>
+              !/\/v1\/admin(?:\/|$)/.test(requestPath(context)),
+          },
+          {
+            name: 'public',
+            ttl: 60_000,
+            limit: config.rateLimitPublicPerMinute,
+            skipIf: (context: ExecutionContext): boolean =>
+              !/\/v1\/public(?:\/|$)/.test(requestPath(context)),
+          },
+          {
+            name: 'search',
+            ttl: 60_000,
+            limit: config.rateLimitSearchPerMinute,
+            skipIf: (context: ExecutionContext): boolean =>
+              !/\/v1\/public\/search(?:\/|\?|$)/.test(requestPath(context)),
+          },
+          {
+            name: 'files',
+            ttl: 60_000,
+            limit: config.rateLimitFilesPerMinute,
+            skipIf: (context: ExecutionContext): boolean =>
+              !/\/v1\/(?:admin|public)\/(?:media|documents)(?:\/|$)/.test(
+                requestPath(context),
+              ),
+          },
+          {
+            name: 'integrations',
+            ttl: 60_000,
+            limit: config.rateLimitIntegrationsPerMinute,
+            skipIf: (context: ExecutionContext): boolean =>
+              !/\/v1\/integration(?:\/|$)/.test(requestPath(context)),
+          },
+        ],
+      }),
+    }),
     DatabaseModule,
     HealthModule,
+    AuthModule,
+    AuditModule,
     CountriesModule,
     DisciplinesModule,
     ClubsModule,
@@ -35,6 +104,11 @@ import { OwnersModule } from './modules/owners/owners.module';
     CompetitionsModule,
     CompetitionClassesModule,
     CompetitionResultsModule,
+  ],
+  providers: [
+    PostgresThrottlerStorage,
+    { provide: ThrottlerStorage, useExisting: PostgresThrottlerStorage },
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
   ],
 })
 export class AppModule {}

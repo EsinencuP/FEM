@@ -7,13 +7,17 @@ import {
   RankingCalculationStatus,
   RankingSubjectType,
   RecordStatus,
+  type Prisma,
 } from '@prisma/client';
+
+import { assertSafeDemoSeedEnvironment } from '../src/common/database/database-safety';
+import { withSerializableTransaction } from '../src/common/database/serializable-transaction';
 
 const prisma = new PrismaClient();
 
 const DEMO_SEED_VERSION = 'database-v1';
 
-function demoId(key: string): string {
+export function demoId(key: string): string {
   const hex = createHash('sha256').update(`fem:${DEMO_SEED_VERSION}:${key}`).digest('hex');
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-a${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
 }
@@ -30,6 +34,13 @@ function requiredAt<T>(items: readonly T[], index: number, label: string): T {
   return item;
 }
 
+function nonDemoIdentityConflicts(
+  resource: string,
+  rows: readonly { id: string; isDemo: boolean }[],
+): string[] {
+  return rows.filter((row) => !row.isDemo).map((row) => `${resource}:${row.id}`);
+}
+
 export interface SeedSummary {
   countries: number;
   federations: number;
@@ -44,7 +55,235 @@ export interface SeedSummary {
   rankingSnapshots: number;
 }
 
+type SeedClient = Prisma.TransactionClient;
+
+async function assertNoNaturalKeyCollisions(
+  client: SeedClient,
+  countryInput: readonly (readonly [string, string, string])[],
+  disciplineInput: readonly (readonly [string, string])[],
+): Promise<void> {
+  const expectedCountryIds = new Map(
+    countryInput.map(([isoAlpha2]) => [isoAlpha2, demoId(`country:${isoAlpha2}`)]),
+  );
+  const expectedDisciplineIds = new Map(
+    disciplineInput.map(([code]) => [code, demoId(`discipline:${code}`)]),
+  );
+  const expectedStatusIds = new Map(
+    ['DEMO_FINISHED', 'DEMO_STATUS_ONLY'].map((code) => [code, demoId(`result-status:${code}`)]),
+  );
+  const expectedEventIds = new Map(
+    [1, 2, 3].map((index) => [`demo-event-${index}`, demoId(`event:${index}`)]),
+  );
+  const expectedRankingDefinitionId = demoId('ranking-definition');
+
+  const [countries, disciplines, statuses, events, rankingDefinition] = await Promise.all([
+    client.country.findMany({
+      where: { isoAlpha2: { in: [...expectedCountryIds.keys()] } },
+      select: { id: true, isoAlpha2: true, isDemo: true },
+    }),
+    client.discipline.findMany({
+      where: { code: { in: [...expectedDisciplineIds.keys()] } },
+      select: { id: true, code: true, isDemo: true },
+    }),
+    client.resultStatus.findMany({
+      where: { code: { in: [...expectedStatusIds.keys()] } },
+      select: { id: true, code: true, isDemo: true },
+    }),
+    client.competitionEvent.findMany({
+      where: { slug: { in: [...expectedEventIds.keys()] } },
+      select: { id: true, slug: true, isDemo: true },
+    }),
+    client.rankingDefinition.findUnique({
+      where: { code: 'DEMO_ATHLETE_RANKING' },
+      select: { id: true, isDemo: true },
+    }),
+  ]);
+
+  const conflicts = [
+    ...countries
+      .filter((row) => !row.isDemo || row.id !== expectedCountryIds.get(row.isoAlpha2))
+      .map((row) => `Country:${row.isoAlpha2}`),
+    ...disciplines
+      .filter((row) => !row.isDemo || row.id !== expectedDisciplineIds.get(row.code))
+      .map((row) => `Discipline:${row.code}`),
+    ...statuses
+      .filter((row) => !row.isDemo || row.id !== expectedStatusIds.get(row.code))
+      .map((row) => `ResultStatus:${row.code}`),
+    ...events
+      .filter((row) => !row.isDemo || row.id !== expectedEventIds.get(row.slug))
+      .map((row) => `CompetitionEvent:${row.slug}`),
+    ...(rankingDefinition &&
+    (!rankingDefinition.isDemo || rankingDefinition.id !== expectedRankingDefinitionId)
+      ? ['RankingDefinition:DEMO_ATHLETE_RANKING']
+      : []),
+  ];
+
+  if (conflicts.length > 0) {
+    throw new Error(
+      `Demo seed collision with existing non-demo or foreign-identity records: ${conflicts.join(', ')}`,
+    );
+  }
+}
+
+async function assertNoDeterministicIdCollisions(client: SeedClient): Promise<void> {
+  const ids = (prefix: string, count: number): string[] =>
+    Array.from({ length: count }, (_, index) => demoId(`${prefix}:${index + 1}`));
+  const classIds = [1, 2, 3].flatMap((eventIndex) =>
+    ids(`class:${eventIndex}`, eventIndex === 3 ? 2 : 3),
+  );
+  const demoIdentityGroups = {
+    NationalFederation: [demoId('federation:moldova')],
+    Club: ids('club', 3),
+    Athlete: ids('athlete', 10),
+    AthleteClubMembership: ids('membership', 10),
+    Horse: ids('horse', 12),
+    AthleteHorseRelation: ids('athlete-horse', 12),
+    Owner: ids('owner', 5),
+    HorseOwnership: ids('ownership', 12),
+    CompetitionClass: classIds,
+    CompetitionResult: ids('result', 36),
+    RankingRuleSet: [demoId('ranking-rule-set')],
+    RankingPeriod: [demoId('ranking-period')],
+    RankingSnapshot: [demoId('ranking-snapshot')],
+    ImportBatch: [demoId('import-batch')],
+  };
+
+  const [
+    federations,
+    clubs,
+    athletes,
+    memberships,
+    horses,
+    athleteHorseRelations,
+    owners,
+    ownerships,
+    classes,
+    results,
+    ruleSets,
+    periods,
+    snapshots,
+    importBatches,
+  ] = await Promise.all([
+    client.nationalFederation.findMany({
+      where: { id: { in: demoIdentityGroups.NationalFederation } },
+      select: { id: true, isDemo: true },
+    }),
+    client.club.findMany({
+      where: { id: { in: demoIdentityGroups.Club } },
+      select: { id: true, isDemo: true },
+    }),
+    client.athlete.findMany({
+      where: { id: { in: demoIdentityGroups.Athlete } },
+      select: { id: true, isDemo: true },
+    }),
+    client.athleteClubMembership.findMany({
+      where: { id: { in: demoIdentityGroups.AthleteClubMembership } },
+      select: { id: true, isDemo: true },
+    }),
+    client.horse.findMany({
+      where: { id: { in: demoIdentityGroups.Horse } },
+      select: { id: true, isDemo: true },
+    }),
+    client.athleteHorseRelation.findMany({
+      where: { id: { in: demoIdentityGroups.AthleteHorseRelation } },
+      select: { id: true, isDemo: true },
+    }),
+    client.owner.findMany({
+      where: { id: { in: demoIdentityGroups.Owner } },
+      select: { id: true, isDemo: true },
+    }),
+    client.horseOwnership.findMany({
+      where: { id: { in: demoIdentityGroups.HorseOwnership } },
+      select: { id: true, isDemo: true },
+    }),
+    client.competitionClass.findMany({
+      where: { id: { in: demoIdentityGroups.CompetitionClass } },
+      select: { id: true, isDemo: true },
+    }),
+    client.competitionResult.findMany({
+      where: { id: { in: demoIdentityGroups.CompetitionResult } },
+      select: { id: true, isDemo: true },
+    }),
+    client.rankingRuleSet.findMany({
+      where: { id: { in: demoIdentityGroups.RankingRuleSet } },
+      select: { id: true, isDemo: true },
+    }),
+    client.rankingPeriod.findMany({
+      where: { id: { in: demoIdentityGroups.RankingPeriod } },
+      select: { id: true, isDemo: true },
+    }),
+    client.rankingSnapshot.findMany({
+      where: { id: { in: demoIdentityGroups.RankingSnapshot } },
+      select: { id: true, isDemo: true },
+    }),
+    client.importBatch.findMany({
+      where: { id: { in: demoIdentityGroups.ImportBatch } },
+      select: { id: true, isDemo: true },
+    }),
+  ]);
+
+  const conflicts = [
+    ...nonDemoIdentityConflicts('NationalFederation', federations),
+    ...nonDemoIdentityConflicts('Club', clubs),
+    ...nonDemoIdentityConflicts('Athlete', athletes),
+    ...nonDemoIdentityConflicts('AthleteClubMembership', memberships),
+    ...nonDemoIdentityConflicts('Horse', horses),
+    ...nonDemoIdentityConflicts('AthleteHorseRelation', athleteHorseRelations),
+    ...nonDemoIdentityConflicts('Owner', owners),
+    ...nonDemoIdentityConflicts('HorseOwnership', ownerships),
+    ...nonDemoIdentityConflicts('CompetitionClass', classes),
+    ...nonDemoIdentityConflicts('CompetitionResult', results),
+    ...nonDemoIdentityConflicts('RankingRuleSet', ruleSets),
+    ...nonDemoIdentityConflicts('RankingPeriod', periods),
+    ...nonDemoIdentityConflicts('RankingSnapshot', snapshots),
+    ...nonDemoIdentityConflicts('ImportBatch', importBatches),
+  ];
+
+  const rankingEntryIds = ids('ranking-entry', 10);
+  const rankingSourceIds = Array.from({ length: 10 }, (_, entryIndex) =>
+    [1, 2].map((sourceIndex) => demoId(`ranking-source:${entryIndex + 1}:${sourceIndex}`)),
+  ).flat();
+  const expectedRankingSourceParents = new Map(
+    Array.from({ length: 10 }, (_, entryIndex) =>
+      [1, 2].map(
+        (sourceIndex) =>
+          [
+            demoId(`ranking-source:${entryIndex + 1}:${sourceIndex}`),
+            demoId(`ranking-entry:${entryIndex + 1}`),
+          ] as const,
+      ),
+    ).flat(),
+  );
+  const [entries, sources] = await Promise.all([
+    client.rankingEntry.findMany({
+      where: { id: { in: rankingEntryIds } },
+      select: { id: true, rankingSnapshotId: true },
+    }),
+    client.rankingEntryResult.findMany({
+      where: { id: { in: rankingSourceIds } },
+      select: { id: true, rankingEntryId: true },
+    }),
+  ]);
+  conflicts.push(
+    ...entries
+      .filter((row) => row.rankingSnapshotId !== demoId('ranking-snapshot'))
+      .map((row) => `RankingEntry:${row.id}`),
+    ...sources
+      .filter((row) => row.rankingEntryId !== expectedRankingSourceParents.get(row.id))
+      .map((row) => `RankingEntryResult:${row.id}`),
+  );
+
+  if (conflicts.length > 0) {
+    throw new Error(`Demo seed collision with deterministic identifiers: ${conflicts.join(', ')}`);
+  }
+}
+
 export async function seedDatabase(client: PrismaClient): Promise<SeedSummary> {
+  assertSafeDemoSeedEnvironment(process.env);
+  return withSerializableTransaction(client, (transaction) => seedData(transaction));
+}
+
+async function seedData(client: SeedClient): Promise<SeedSummary> {
   const countryInput = [
     ['MD', 'MDA', 'Moldova'],
     ['RO', 'ROU', 'Romania'],
@@ -52,6 +291,15 @@ export async function seedDatabase(client: PrismaClient): Promise<SeedSummary> {
     ['PL', 'POL', 'Poland'],
     ['DE', 'DEU', 'Germany'],
   ] as const;
+
+  const disciplineInput = [
+    ['DEMO_DRESSAGE', 'Demo Dressage'],
+    ['DEMO_JUMPING', 'Demo Jumping'],
+    ['DEMO_EVENTING', 'Demo Eventing'],
+  ] as const;
+
+  await assertNoNaturalKeyCollisions(client, countryInput, disciplineInput);
+  await assertNoDeterministicIdCollisions(client);
 
   for (const [isoAlpha2, isoAlpha3, name] of countryInput) {
     await client.country.upsert({
@@ -83,11 +331,6 @@ export async function seedDatabase(client: PrismaClient): Promise<SeedSummary> {
     },
   });
 
-  const disciplineInput = [
-    ['DEMO_DRESSAGE', 'Demo Dressage'],
-    ['DEMO_JUMPING', 'Demo Jumping'],
-    ['DEMO_EVENTING', 'Demo Eventing'],
-  ] as const;
   for (const [code, name] of disciplineInput) {
     await client.discipline.upsert({
       where: { code },
@@ -304,7 +547,7 @@ export async function seedDatabase(client: PrismaClient): Promise<SeedSummary> {
     const eventId = demoId(`event:${eventIndex}`);
     eventIds.push(eventId);
     const eventDate = `2026-0${eventIndex + 5}-1${eventIndex}`;
-    await client.competitionEvent.upsert({
+    const event = await client.competitionEvent.upsert({
       where: { slug: `demo-event-${eventIndex}` },
       update: {
         title: `Demo Competition Event ${eventIndex}`,
@@ -331,6 +574,7 @@ export async function seedDatabase(client: PrismaClient): Promise<SeedSummary> {
         isDemo: true,
       },
     });
+    eventIds[eventIds.length - 1] = event.id;
     const classCount = eventIndex === 3 ? 2 : 3;
     for (let classIndex = 1; classIndex <= classCount; classIndex += 1) {
       const id = demoId(`class:${eventIndex}:${classIndex}`);
@@ -338,7 +582,7 @@ export async function seedDatabase(client: PrismaClient): Promise<SeedSummary> {
       await client.competitionClass.upsert({
         where: { id },
         update: {
-          competitionEventId: eventId,
+          competitionEventId: event.id,
           title: `Demo Class ${eventIndex}.${classIndex}`,
           disciplineId: requiredAt(
             disciplines,
@@ -355,7 +599,7 @@ export async function seedDatabase(client: PrismaClient): Promise<SeedSummary> {
         },
         create: {
           id,
-          competitionEventId: eventId,
+          competitionEventId: event.id,
           title: `Demo Class ${eventIndex}.${classIndex}`,
           disciplineId: requiredAt(
             disciplines,
@@ -424,11 +668,11 @@ export async function seedDatabase(client: PrismaClient): Promise<SeedSummary> {
     resultIdsByAthlete.set(athleteId, existing);
   }
 
-  const definitionId = demoId('ranking-definition');
+  const expectedDefinitionId = demoId('ranking-definition');
   const periodId = demoId('ranking-period');
   const ruleSetId = demoId('ranking-rule-set');
   const snapshotId = demoId('ranking-snapshot');
-  await client.rankingDefinition.upsert({
+  const rankingDefinition = await client.rankingDefinition.upsert({
     where: { code: 'DEMO_ATHLETE_RANKING' },
     update: {
       name: 'Demo Athlete Ranking Storage',
@@ -438,7 +682,7 @@ export async function seedDatabase(client: PrismaClient): Promise<SeedSummary> {
       archivedAt: null,
     },
     create: {
-      id: definitionId,
+      id: expectedDefinitionId,
       code: 'DEMO_ATHLETE_RANKING',
       name: 'Demo Athlete Ranking Storage',
       subjectType: RankingSubjectType.ATHLETE,
@@ -446,6 +690,7 @@ export async function seedDatabase(client: PrismaClient): Promise<SeedSummary> {
       isDemo: true,
     },
   });
+  const definitionId = rankingDefinition.id;
   await client.rankingRuleSet.upsert({
     where: { id: ruleSetId },
     update: {

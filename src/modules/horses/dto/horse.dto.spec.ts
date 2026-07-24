@@ -39,6 +39,19 @@ describe('Horse DTO validation', () => {
     ).toThrow(BadRequestException);
   });
 
+  it('rejects a zero ownership share before it reaches PostgreSQL', () => {
+    expect(() =>
+      pipe.transform(
+        {
+          ownerId: '00000000-0000-4000-8000-000000000001',
+          startDate: '2026-07-23',
+          ownershipShare: 0,
+        },
+        metadata(CreateHorseOwnershipDto),
+      ),
+    ).toThrow(BadRequestException);
+  });
+
   it('caps list pagination at 100', () => {
     expect(() => pipe.transform({ page: 1, limit: 101 }, metadata(HorseListQueryDto))).toThrow(
       BadRequestException,

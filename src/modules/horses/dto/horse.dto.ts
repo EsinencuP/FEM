@@ -7,9 +7,9 @@ import {
   dateStringSchema,
   ensureDateOrder,
   nullableDateStringSchema,
-  nonNegativeDecimalSchema,
   recordStatusSchema,
   requiredString,
+  requireAtLeastOneField,
   sortOrderSchema,
   uuidSchema,
 } from '../../../common/dto/schemas';
@@ -34,30 +34,34 @@ const horseFields = z
 export class CreateHorseDto {
   static readonly schema = horseFields;
   @ApiProperty({ example: 'Demo Aurora' }) displayName!: string;
-  @ApiPropertyOptional({ nullable: true }) passportName?: string | null;
-  @ApiPropertyOptional({ format: 'date', nullable: true }) dateOfBirth?: Date | null;
-  @ApiPropertyOptional({ nullable: true }) birthYear?: number | null;
-  @ApiPropertyOptional({ nullable: true }) sex?: string | null;
-  @ApiPropertyOptional({ nullable: true }) breed?: string | null;
-  @ApiPropertyOptional({ nullable: true }) color?: string | null;
-  @ApiPropertyOptional({ format: 'uuid', nullable: true }) countryOfBirthId?: string | null;
-  @ApiPropertyOptional({ nullable: true }) studbook?: string | null;
-  @ApiPropertyOptional({ format: 'uuid', nullable: true }) imageId?: string | null;
+  @ApiPropertyOptional({ type: String, nullable: true }) passportName?: string | null;
+  @ApiPropertyOptional({ type: String, format: 'date', nullable: true })
+  dateOfBirth?: Date | null;
+  @ApiPropertyOptional({ type: Number, nullable: true }) birthYear?: number | null;
+  @ApiPropertyOptional({ type: String, nullable: true }) sex?: string | null;
+  @ApiPropertyOptional({ type: String, nullable: true }) breed?: string | null;
+  @ApiPropertyOptional({ type: String, nullable: true }) color?: string | null;
+  @ApiPropertyOptional({ type: String, format: 'uuid', nullable: true })
+  countryOfBirthId?: string | null;
+  @ApiPropertyOptional({ type: String, nullable: true }) studbook?: string | null;
+  @ApiPropertyOptional({ type: String, format: 'uuid', nullable: true }) imageId?: string | null;
   @ApiPropertyOptional({ enum: RecordStatus }) status?: RecordStatus;
 }
 
 export class UpdateHorseDto {
-  static readonly schema = horseFields.partial().strict();
+  static readonly schema = horseFields.partial().strict().superRefine(requireAtLeastOneField);
   @ApiPropertyOptional() displayName?: string;
-  @ApiPropertyOptional({ nullable: true }) passportName?: string | null;
-  @ApiPropertyOptional({ nullable: true }) dateOfBirth?: Date | null;
-  @ApiPropertyOptional({ nullable: true }) birthYear?: number | null;
-  @ApiPropertyOptional({ nullable: true }) sex?: string | null;
-  @ApiPropertyOptional({ nullable: true }) breed?: string | null;
-  @ApiPropertyOptional({ nullable: true }) color?: string | null;
-  @ApiPropertyOptional({ nullable: true }) countryOfBirthId?: string | null;
-  @ApiPropertyOptional({ nullable: true }) studbook?: string | null;
-  @ApiPropertyOptional({ nullable: true }) imageId?: string | null;
+  @ApiPropertyOptional({ type: String, nullable: true }) passportName?: string | null;
+  @ApiPropertyOptional({ type: String, format: 'date', nullable: true })
+  dateOfBirth?: Date | null;
+  @ApiPropertyOptional({ type: Number, nullable: true }) birthYear?: number | null;
+  @ApiPropertyOptional({ type: String, nullable: true }) sex?: string | null;
+  @ApiPropertyOptional({ type: String, nullable: true }) breed?: string | null;
+  @ApiPropertyOptional({ type: String, nullable: true }) color?: string | null;
+  @ApiPropertyOptional({ type: String, format: 'uuid', nullable: true })
+  countryOfBirthId?: string | null;
+  @ApiPropertyOptional({ type: String, nullable: true }) studbook?: string | null;
+  @ApiPropertyOptional({ type: String, format: 'uuid', nullable: true }) imageId?: string | null;
   @ApiPropertyOptional({ enum: RecordStatus }) status?: RecordStatus;
 }
 
@@ -78,13 +82,14 @@ export class HorseListQueryDto {
       sortOrder: sortOrderSchema,
     })
     .strict();
-  @ApiPropertyOptional({ default: 1 }) page = 1;
-  @ApiPropertyOptional({ default: 20, maximum: 100 }) limit = 20;
+  @ApiPropertyOptional({ type: 'integer', default: 1, minimum: 1 }) page = 1;
+  @ApiPropertyOptional({ type: 'integer', default: 20, minimum: 1, maximum: 100 })
+  limit = 20;
   @ApiPropertyOptional() search?: string;
   @ApiPropertyOptional() sex?: string;
   @ApiPropertyOptional() breed?: string;
   @ApiPropertyOptional() color?: string;
-  @ApiPropertyOptional() birthYear?: number;
+  @ApiPropertyOptional({ type: 'integer' }) birthYear?: number;
   @ApiPropertyOptional({ format: 'uuid' }) countryOfBirthId?: string;
   @ApiPropertyOptional({ enum: RecordStatus }) status?: RecordStatus;
   @ApiPropertyOptional({ enum: ['true', 'false', 'all'] }) archived: 'true' | 'false' | 'all' =
@@ -99,7 +104,7 @@ const ownershipFields = z
     ownerId: uuidSchema,
     startDate: dateStringSchema,
     endDate: nullableDateStringSchema.optional(),
-    ownershipShare: nonNegativeDecimalSchema.max(100).nullable().optional(),
+    ownershipShare: z.coerce.number().positive().max(100).nullable().optional(),
     sourceDocumentId: uuidSchema.nullable().optional(),
   })
   .strict();
@@ -108,18 +113,39 @@ export class CreateHorseOwnershipDto {
   static readonly schema = ownershipFields.superRefine(ensureDateOrder);
   @ApiProperty({ format: 'uuid' }) ownerId!: string;
   @ApiProperty({ format: 'date' }) startDate!: Date;
-  @ApiPropertyOptional({ nullable: true }) endDate?: Date | null;
-  @ApiPropertyOptional({ minimum: 0, maximum: 100, nullable: true }) ownershipShare?: number | null;
+  @ApiPropertyOptional({ type: String, format: 'date', nullable: true }) endDate?: Date | null;
+  @ApiPropertyOptional({
+    type: Number,
+    minimum: 0,
+    exclusiveMinimum: true,
+    maximum: 100,
+    nullable: true,
+  })
+  ownershipShare?: number | null;
   @ApiPropertyOptional({ format: 'uuid', nullable: true }) sourceDocumentId?: string | null;
 }
 
 export class UpdateHorseOwnershipDto {
-  static readonly schema = ownershipFields.partial().strict().superRefine(ensureDateOrder);
+  static readonly schema = ownershipFields
+    .partial()
+    .strict()
+    .superRefine((value, context) => {
+      requireAtLeastOneField(value, context);
+      ensureDateOrder(value, context);
+    });
   @ApiPropertyOptional({ format: 'uuid' }) ownerId?: string;
-  @ApiPropertyOptional() startDate?: Date;
-  @ApiPropertyOptional({ nullable: true }) endDate?: Date | null;
-  @ApiPropertyOptional({ minimum: 0, maximum: 100, nullable: true }) ownershipShare?: number | null;
-  @ApiPropertyOptional({ nullable: true }) sourceDocumentId?: string | null;
+  @ApiPropertyOptional({ type: String, format: 'date' }) startDate?: Date;
+  @ApiPropertyOptional({ type: String, format: 'date', nullable: true }) endDate?: Date | null;
+  @ApiPropertyOptional({
+    type: Number,
+    minimum: 0,
+    exclusiveMinimum: true,
+    maximum: 100,
+    nullable: true,
+  })
+  ownershipShare?: number | null;
+  @ApiPropertyOptional({ type: String, format: 'uuid', nullable: true })
+  sourceDocumentId?: string | null;
 }
 
 const athleteRelationFields = z
@@ -136,19 +162,27 @@ const athleteRelationFields = z
 export class CreateHorseAthleteRelationDto {
   static readonly schema = athleteRelationFields.superRefine(ensureDateOrder);
   @ApiProperty({ format: 'uuid' }) athleteId!: string;
-  @ApiPropertyOptional({ nullable: true }) relationType?: string | null;
+  @ApiPropertyOptional({ type: String, nullable: true }) relationType?: string | null;
   @ApiPropertyOptional({ format: 'uuid', nullable: true }) disciplineId?: string | null;
   @ApiProperty({ format: 'date' }) startDate!: Date;
-  @ApiPropertyOptional({ nullable: true }) endDate?: Date | null;
+  @ApiPropertyOptional({ type: String, format: 'date', nullable: true }) endDate?: Date | null;
   @ApiPropertyOptional({ format: 'uuid', nullable: true }) sourceDocumentId?: string | null;
 }
 
 export class UpdateHorseAthleteRelationDto {
-  static readonly schema = athleteRelationFields.partial().strict().superRefine(ensureDateOrder);
+  static readonly schema = athleteRelationFields
+    .partial()
+    .strict()
+    .superRefine((value, context) => {
+      requireAtLeastOneField(value, context);
+      ensureDateOrder(value, context);
+    });
   @ApiPropertyOptional({ format: 'uuid' }) athleteId?: string;
-  @ApiPropertyOptional({ nullable: true }) relationType?: string | null;
-  @ApiPropertyOptional({ nullable: true }) disciplineId?: string | null;
-  @ApiPropertyOptional() startDate?: Date;
-  @ApiPropertyOptional({ nullable: true }) endDate?: Date | null;
-  @ApiPropertyOptional({ nullable: true }) sourceDocumentId?: string | null;
+  @ApiPropertyOptional({ type: String, nullable: true }) relationType?: string | null;
+  @ApiPropertyOptional({ type: String, format: 'uuid', nullable: true })
+  disciplineId?: string | null;
+  @ApiPropertyOptional({ type: String, format: 'date' }) startDate?: Date;
+  @ApiPropertyOptional({ type: String, format: 'date', nullable: true }) endDate?: Date | null;
+  @ApiPropertyOptional({ type: String, format: 'uuid', nullable: true })
+  sourceDocumentId?: string | null;
 }

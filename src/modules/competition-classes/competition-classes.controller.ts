@@ -2,6 +2,7 @@ import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query } from 
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { ApiStandardErrors } from '../../common/decorators/api-contract.decorator';
+import { AdminProtected } from '../../common/decorators/admin-protected.decorator';
 import { PaginationQueryDto } from '../../common/pagination/pagination.dto';
 import { CompetitionClassesService } from './competition-classes.service';
 import {
@@ -14,7 +15,8 @@ const uuidPipe = (): ParseUUIDPipe => new ParseUUIDPipe({ version: '4' as const 
 
 @ApiTags('Competition Classes')
 @ApiStandardErrors()
-@Controller('v1/competition-classes')
+@AdminProtected()
+@Controller('v1/admin/competition-classes')
 export class CompetitionClassesController {
   constructor(private readonly service: CompetitionClassesService) {}
   @Get() list(

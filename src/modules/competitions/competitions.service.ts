@@ -1,6 +1,9 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { PublicationStatus, type CompetitionEvent, type Prisma } from '@prisma/client';
+import type { CompetitionEvent, Prisma } from '@prisma/client';
 
+import { assertActiveRecord } from '../../common/database/archive-policy';
+import { validateReferenceStates } from '../../common/database/reference-policy';
+import { withSerializableTransaction } from '../../common/database/serializable-transaction';
 import {
   dataResponse,
   listResponse,
@@ -62,7 +65,10 @@ export class CompetitionsService {
           status: true,
           publicationStatus: true,
           publishedAt: true,
+          isDemo: true,
           archivedAt: true,
+          createdAt: true,
+          updatedAt: true,
           country: { select: { id: true, isoAlpha2: true, name: true } },
           _count: { select: { classes: true } },
         },
@@ -102,76 +108,154 @@ export class CompetitionsService {
 
   async create(dto: CreateCompetitionDto): Promise<DataResponse<CompetitionEvent>> {
     this.assertDates(dto.startDate, dto.endDate);
-    const data: Prisma.CompetitionEventUncheckedCreateInput = {
-      title: dto.title,
-      slug: dto.slug,
-      startDate: dto.startDate,
-      endDate: dto.endDate,
-      ...(dto.description !== undefined ? { description: dto.description } : {}),
-      ...(dto.location !== undefined ? { location: dto.location } : {}),
-      ...(dto.venue !== undefined ? { venue: dto.venue } : {}),
-      ...(dto.countryId !== undefined ? { countryId: dto.countryId } : {}),
-      ...(dto.organizerName !== undefined ? { organizerName: dto.organizerName } : {}),
-      ...(dto.status !== undefined ? { status: dto.status } : {}),
-      ...(dto.publicationStatus !== undefined ? { publicationStatus: dto.publicationStatus } : {}),
-      ...(dto.coverMediaId !== undefined ? { coverMediaId: dto.coverMediaId } : {}),
-      ...(dto.publicationStatus === PublicationStatus.PUBLISHED ? { publishedAt: new Date() } : {}),
-    };
-    return dataResponse(
-      await this.prisma.competitionEvent.create({
-        data,
-      }),
-    );
+    return withSerializableTransaction(this.prisma, async (transaction) => {
+      const [country, coverMedia] = await Promise.all([
+        dto.countryId
+          ? transaction.country.findUnique({
+              where: { id: dto.countryId },
+              select: { archivedAt: true, isDemo: true },
+            })
+          : Promise.resolve(null),
+        dto.coverMediaId
+          ? transaction.mediaFile.findUnique({
+              where: { id: dto.coverMediaId },
+              select: { archivedAt: true, isDemo: true },
+            })
+          : Promise.resolve(null),
+      ]);
+      const isDemo = validateReferenceStates([
+        ...(dto.countryId ? [{ resourceName: 'Country', state: country }] : []),
+        ...(dto.coverMediaId ? [{ resourceName: 'Media file', state: coverMedia }] : []),
+      ]);
+      const data: Prisma.CompetitionEventUncheckedCreateInput = {
+        title: dto.title,
+        slug: dto.slug,
+        startDate: dto.startDate,
+        endDate: dto.endDate,
+        isDemo,
+        ...(dto.description !== undefined ? { description: dto.description } : {}),
+        ...(dto.location !== undefined ? { location: dto.location } : {}),
+        ...(dto.venue !== undefined ? { venue: dto.venue } : {}),
+        ...(dto.countryId !== undefined ? { countryId: dto.countryId } : {}),
+        ...(dto.organizerName !== undefined ? { organizerName: dto.organizerName } : {}),
+        ...(dto.status !== undefined ? { status: dto.status } : {}),
+        ...(dto.coverMediaId !== undefined ? { coverMediaId: dto.coverMediaId } : {}),
+      };
+      return dataResponse(await transaction.competitionEvent.create({ data }));
+    });
   }
 
   async update(id: string, dto: UpdateCompetitionDto): Promise<DataResponse<CompetitionEvent>> {
-    const current = await this.prisma.competitionEvent.findUniqueOrThrow({ where: { id } });
-    this.assertDates(dto.startDate ?? current.startDate, dto.endDate ?? current.endDate);
-    const data: Prisma.CompetitionEventUpdateInput = {
-      ...(dto.title !== undefined ? { title: dto.title } : {}),
-      ...(dto.slug !== undefined ? { slug: dto.slug } : {}),
-      ...(dto.description !== undefined ? { description: dto.description } : {}),
-      ...(dto.startDate !== undefined ? { startDate: dto.startDate } : {}),
-      ...(dto.endDate !== undefined ? { endDate: dto.endDate } : {}),
-      ...(dto.location !== undefined ? { location: dto.location } : {}),
-      ...(dto.venue !== undefined ? { venue: dto.venue } : {}),
-      ...(dto.countryId !== undefined
-        ? { country: dto.countryId ? { connect: { id: dto.countryId } } : { disconnect: true } }
-        : {}),
-      ...(dto.organizerName !== undefined ? { organizerName: dto.organizerName } : {}),
-      ...(dto.status !== undefined ? { status: dto.status } : {}),
-      ...(dto.publicationStatus !== undefined ? { publicationStatus: dto.publicationStatus } : {}),
-      ...(dto.coverMediaId !== undefined
-        ? {
-            coverMedia: dto.coverMediaId
-              ? { connect: { id: dto.coverMediaId } }
-              : { disconnect: true },
-          }
-        : {}),
-      ...(dto.publicationStatus === PublicationStatus.PUBLISHED && current.publishedAt === null
-        ? { publishedAt: new Date() }
-        : {}),
-      ...(dto.publicationStatus !== undefined &&
-      dto.publicationStatus !== PublicationStatus.PUBLISHED
-        ? { publishedAt: null }
-        : {}),
-    };
-    return dataResponse(await this.prisma.competitionEvent.update({ where: { id }, data }));
+    return withSerializableTransaction(this.prisma, async (transaction) => {
+      const current = await transaction.competitionEvent.findUniqueOrThrow({ where: { id } });
+      assertActiveRecord(current, 'competition');
+      const [country, coverMedia] = await Promise.all([
+        dto.countryId
+          ? transaction.country.findUnique({
+              where: { id: dto.countryId },
+              select: { archivedAt: true, isDemo: true },
+            })
+          : Promise.resolve(null),
+        dto.coverMediaId
+          ? transaction.mediaFile.findUnique({
+              where: { id: dto.coverMediaId },
+              select: { archivedAt: true, isDemo: true },
+            })
+          : Promise.resolve(null),
+      ]);
+      validateReferenceStates(
+        [
+          ...(dto.countryId ? [{ resourceName: 'Country', state: country }] : []),
+          ...(dto.coverMediaId ? [{ resourceName: 'Media file', state: coverMedia }] : []),
+        ],
+        current.isDemo,
+      );
+      const startDate = dto.startDate ?? current.startDate;
+      const endDate = dto.endDate ?? current.endDate;
+      this.assertDates(startDate, endDate);
+
+      const invalidClass = await transaction.competitionClass.findFirst({
+        where: {
+          competitionEventId: id,
+          competitionDate: { not: null },
+          OR: [{ competitionDate: { lt: startDate } }, { competitionDate: { gt: endDate } }],
+        },
+        select: { id: true },
+      });
+      if (invalidClass) {
+        throw new BadRequestException({
+          message: 'The event period cannot exclude an existing competition class date',
+          code: 'CLASS_DATE_OUTSIDE_EVENT',
+        });
+      }
+
+      const data: Prisma.CompetitionEventUpdateInput = {
+        ...(dto.title !== undefined ? { title: dto.title } : {}),
+        ...(dto.slug !== undefined ? { slug: dto.slug } : {}),
+        ...(dto.description !== undefined ? { description: dto.description } : {}),
+        ...(dto.startDate !== undefined ? { startDate: dto.startDate } : {}),
+        ...(dto.endDate !== undefined ? { endDate: dto.endDate } : {}),
+        ...(dto.location !== undefined ? { location: dto.location } : {}),
+        ...(dto.venue !== undefined ? { venue: dto.venue } : {}),
+        ...(dto.countryId !== undefined
+          ? { country: dto.countryId ? { connect: { id: dto.countryId } } : { disconnect: true } }
+          : {}),
+        ...(dto.organizerName !== undefined ? { organizerName: dto.organizerName } : {}),
+        ...(dto.status !== undefined ? { status: dto.status } : {}),
+        ...(dto.coverMediaId !== undefined
+          ? {
+              coverMedia: dto.coverMediaId
+                ? { connect: { id: dto.coverMediaId } }
+                : { disconnect: true },
+            }
+          : {}),
+      };
+      return dataResponse(await transaction.competitionEvent.update({ where: { id }, data }));
+    });
   }
 
   async archive(id: string): Promise<DataResponse<CompetitionEvent>> {
-    return dataResponse(
-      await this.prisma.competitionEvent.update({
-        where: { id },
-        data: { archivedAt: new Date() },
-      }),
+    return withSerializableTransaction(this.prisma, async (transaction) =>
+      dataResponse(
+        await transaction.competitionEvent.update({
+          where: { id },
+          data: { archivedAt: new Date() },
+        }),
+      ),
     );
   }
 
   async restore(id: string): Promise<DataResponse<CompetitionEvent>> {
-    return dataResponse(
-      await this.prisma.competitionEvent.update({ where: { id }, data: { archivedAt: null } }),
-    );
+    return withSerializableTransaction(this.prisma, async (transaction) => {
+      const current = await transaction.competitionEvent.findUniqueOrThrow({ where: { id } });
+      const [country, coverMedia] = await Promise.all([
+        current.countryId
+          ? transaction.country.findUnique({
+              where: { id: current.countryId },
+              select: { archivedAt: true, isDemo: true },
+            })
+          : Promise.resolve(null),
+        current.coverMediaId
+          ? transaction.mediaFile.findUnique({
+              where: { id: current.coverMediaId },
+              select: { archivedAt: true, isDemo: true },
+            })
+          : Promise.resolve(null),
+      ]);
+      validateReferenceStates(
+        [
+          ...(current.countryId ? [{ resourceName: 'Country', state: country }] : []),
+          ...(current.coverMediaId ? [{ resourceName: 'Media file', state: coverMedia }] : []),
+        ],
+        current.isDemo,
+      );
+      return dataResponse(
+        await transaction.competitionEvent.update({
+          where: { id },
+          data: { archivedAt: null },
+        }),
+      );
+    });
   }
 
   async classes(id: string, query: PaginationQuery): Promise<ListResponse<unknown>> {
@@ -197,7 +281,13 @@ export class CompetitionsService {
           athlete: { select: { id: true, displayName: true } },
           horse: { select: { id: true, displayName: true } },
           status: { select: { id: true, code: true, label: true } },
-          competitionClass: { select: { id: true, title: true } },
+          competitionClass: {
+            select: {
+              id: true,
+              title: true,
+              competitionEvent: { select: { id: true, title: true, slug: true } },
+            },
+          },
         },
         orderBy: [{ competitionClassId: 'asc' }, { rank: 'asc' }, { id: 'asc' }],
         ...paginationArgs(query),

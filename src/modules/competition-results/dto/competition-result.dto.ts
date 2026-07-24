@@ -7,7 +7,9 @@ import {
   boundedDecimalSchema,
   nonNegativeDecimalSchema,
   publicationStatusSchema,
+  queryBooleanSchema,
   requiredString,
+  requireAtLeastOneField,
   sortOrderSchema,
   uuidSchema,
 } from '../../../common/dto/schemas';
@@ -17,7 +19,7 @@ const metricBase = z
   .object({
     metricCode: requiredString(80),
     numericValue: boundedDecimalSchema.nullable().optional(),
-    textValue: z.string().trim().max(500).nullable().optional(),
+    textValue: z.string().trim().min(1).max(500).nullable().optional(),
     unit: z.string().trim().max(80).nullable().optional(),
     sortOrder: z.coerce.number().int().min(0).max(100_000).optional(),
   })
@@ -37,9 +39,9 @@ const metricFields = metricBase.superRefine((value, context) => {
 export class CreateResultMetricDto {
   static readonly schema = metricFields;
   @ApiProperty() metricCode!: string;
-  @ApiPropertyOptional({ nullable: true }) numericValue?: number | null;
-  @ApiPropertyOptional({ nullable: true }) textValue?: string | null;
-  @ApiPropertyOptional({ nullable: true }) unit?: string | null;
+  @ApiPropertyOptional({ type: Number, nullable: true }) numericValue?: number | null;
+  @ApiPropertyOptional({ type: String, nullable: true }) textValue?: string | null;
+  @ApiPropertyOptional({ type: String, nullable: true }) unit?: string | null;
   @ApiPropertyOptional({ minimum: 0 }) sortOrder?: number;
 }
 
@@ -48,6 +50,7 @@ export class UpdateResultMetricDto {
     .partial()
     .strict()
     .superRefine((value, context) => {
+      requireAtLeastOneField(value, context);
       if (
         value.numericValue !== undefined &&
         value.numericValue !== null &&
@@ -61,13 +64,13 @@ export class UpdateResultMetricDto {
       }
     });
   @ApiPropertyOptional() metricCode?: string;
-  @ApiPropertyOptional({ nullable: true }) numericValue?: number | null;
-  @ApiPropertyOptional({ nullable: true }) textValue?: string | null;
-  @ApiPropertyOptional({ nullable: true }) unit?: string | null;
+  @ApiPropertyOptional({ type: Number, nullable: true }) numericValue?: number | null;
+  @ApiPropertyOptional({ type: String, nullable: true }) textValue?: string | null;
+  @ApiPropertyOptional({ type: String, nullable: true }) unit?: string | null;
   @ApiPropertyOptional({ minimum: 0 }) sortOrder?: number;
 }
 
-const resultFields = z
+const resultFieldsBase = z
   .object({
     competitionClassId: uuidSchema,
     athleteId: uuidSchema,
@@ -81,44 +84,66 @@ const resultFields = z
     bonus: boundedDecimalSchema.nullable().optional(),
     sourceDocumentId: uuidSchema.nullable().optional(),
     sourceReference: z.string().trim().max(500).nullable().optional(),
-    publicationStatus: publicationStatusSchema.optional(),
     metrics: z.array(metricFields).max(100).optional(),
   })
   .strict();
+
+const resultFields = resultFieldsBase.superRefine((value, context) => {
+  const hasDirectOutcome =
+    value.rank != null ||
+    value.statusId != null ||
+    (typeof value.resultDisplay === 'string' && value.resultDisplay.length > 0) ||
+    value.penalties != null ||
+    value.timeSeconds != null ||
+    value.points != null ||
+    value.bonus != null;
+  const hasMetricOutcome = (value.metrics?.length ?? 0) > 0;
+
+  if (!hasDirectOutcome && !hasMetricOutcome) {
+    context.addIssue({
+      code: 'custom',
+      message: 'At least one result outcome or metric must be provided',
+    });
+  }
+});
 
 export class CreateCompetitionResultDto {
   static readonly schema = resultFields;
   @ApiProperty({ format: 'uuid' }) competitionClassId!: string;
   @ApiProperty({ format: 'uuid' }) athleteId!: string;
   @ApiProperty({ format: 'uuid' }) horseId!: string;
-  @ApiPropertyOptional({ minimum: 1, nullable: true }) rank?: number | null;
-  @ApiPropertyOptional({ format: 'uuid', nullable: true }) statusId?: string | null;
-  @ApiPropertyOptional({ nullable: true }) resultDisplay?: string | null;
-  @ApiPropertyOptional({ minimum: 0, nullable: true }) penalties?: number | null;
-  @ApiPropertyOptional({ minimum: 0, nullable: true }) timeSeconds?: number | null;
-  @ApiPropertyOptional({ nullable: true }) points?: number | null;
-  @ApiPropertyOptional({ nullable: true }) bonus?: number | null;
-  @ApiPropertyOptional({ nullable: true }) sourceDocumentId?: string | null;
-  @ApiPropertyOptional({ nullable: true }) sourceReference?: string | null;
-  @ApiPropertyOptional({ enum: PublicationStatus }) publicationStatus?: PublicationStatus;
+  @ApiPropertyOptional({ type: 'integer', minimum: 1, nullable: true }) rank?: number | null;
+  @ApiPropertyOptional({ type: String, format: 'uuid', nullable: true }) statusId?: string | null;
+  @ApiPropertyOptional({ type: String, nullable: true }) resultDisplay?: string | null;
+  @ApiPropertyOptional({ type: Number, minimum: 0, nullable: true }) penalties?: number | null;
+  @ApiPropertyOptional({ type: Number, minimum: 0, nullable: true }) timeSeconds?: number | null;
+  @ApiPropertyOptional({ type: Number, nullable: true }) points?: number | null;
+  @ApiPropertyOptional({ type: Number, nullable: true }) bonus?: number | null;
+  @ApiPropertyOptional({ type: String, format: 'uuid', nullable: true })
+  sourceDocumentId?: string | null;
+  @ApiPropertyOptional({ type: String, nullable: true }) sourceReference?: string | null;
   @ApiPropertyOptional({ type: [CreateResultMetricDto] }) metrics?: CreateResultMetricDto[];
 }
 
 export class UpdateCompetitionResultDto {
-  static readonly schema = resultFields.omit({ metrics: true }).partial().strict();
-  @ApiPropertyOptional() competitionClassId?: string;
-  @ApiPropertyOptional() athleteId?: string;
-  @ApiPropertyOptional() horseId?: string;
-  @ApiPropertyOptional({ minimum: 1, nullable: true }) rank?: number | null;
-  @ApiPropertyOptional({ nullable: true }) statusId?: string | null;
-  @ApiPropertyOptional({ nullable: true }) resultDisplay?: string | null;
-  @ApiPropertyOptional({ nullable: true }) penalties?: number | null;
-  @ApiPropertyOptional({ nullable: true }) timeSeconds?: number | null;
-  @ApiPropertyOptional({ nullable: true }) points?: number | null;
-  @ApiPropertyOptional({ nullable: true }) bonus?: number | null;
-  @ApiPropertyOptional({ nullable: true }) sourceDocumentId?: string | null;
-  @ApiPropertyOptional({ nullable: true }) sourceReference?: string | null;
-  @ApiPropertyOptional({ enum: PublicationStatus }) publicationStatus?: PublicationStatus;
+  static readonly schema = resultFieldsBase
+    .omit({ metrics: true })
+    .partial()
+    .strict()
+    .superRefine(requireAtLeastOneField);
+  @ApiPropertyOptional({ type: String, format: 'uuid' }) competitionClassId?: string;
+  @ApiPropertyOptional({ type: String, format: 'uuid' }) athleteId?: string;
+  @ApiPropertyOptional({ type: String, format: 'uuid' }) horseId?: string;
+  @ApiPropertyOptional({ type: 'integer', minimum: 1, nullable: true }) rank?: number | null;
+  @ApiPropertyOptional({ type: String, format: 'uuid', nullable: true }) statusId?: string | null;
+  @ApiPropertyOptional({ type: String, nullable: true }) resultDisplay?: string | null;
+  @ApiPropertyOptional({ type: Number, minimum: 0, nullable: true }) penalties?: number | null;
+  @ApiPropertyOptional({ type: Number, minimum: 0, nullable: true }) timeSeconds?: number | null;
+  @ApiPropertyOptional({ type: Number, nullable: true }) points?: number | null;
+  @ApiPropertyOptional({ type: Number, nullable: true }) bonus?: number | null;
+  @ApiPropertyOptional({ type: String, format: 'uuid', nullable: true })
+  sourceDocumentId?: string | null;
+  @ApiPropertyOptional({ type: String, nullable: true }) sourceReference?: string | null;
 }
 
 export class CompetitionResultListQueryDto {
@@ -132,25 +157,33 @@ export class CompetitionResultListQueryDto {
       statusId: uuidSchema.optional(),
       statusCode: z.string().trim().max(80).optional(),
       publicationStatus: publicationStatusSchema.optional(),
-      hasRank: z.coerce.boolean().optional(),
+      hasRank: queryBooleanSchema.optional(),
       archived: archivedSchema,
       sortBy: z.enum(['rank', 'points', 'timeSeconds', 'penalties', 'createdAt']).default('rank'),
       sortOrder: sortOrderSchema,
     })
     .strict();
-  @ApiPropertyOptional({ default: 1 }) page = 1;
-  @ApiPropertyOptional({ default: 20, maximum: 100 }) limit = 20;
-  @ApiPropertyOptional() competitionEventId?: string;
-  @ApiPropertyOptional() competitionClassId?: string;
-  @ApiPropertyOptional() athleteId?: string;
-  @ApiPropertyOptional() horseId?: string;
-  @ApiPropertyOptional() disciplineId?: string;
-  @ApiPropertyOptional() statusId?: string;
+  @ApiPropertyOptional({ type: 'integer', default: 1, minimum: 1 }) page = 1;
+  @ApiPropertyOptional({ type: 'integer', default: 20, minimum: 1, maximum: 100 })
+  limit = 20;
+  @ApiPropertyOptional({ type: String, format: 'uuid' }) competitionEventId?: string;
+  @ApiPropertyOptional({ type: String, format: 'uuid' }) competitionClassId?: string;
+  @ApiPropertyOptional({ type: String, format: 'uuid' }) athleteId?: string;
+  @ApiPropertyOptional({ type: String, format: 'uuid' }) horseId?: string;
+  @ApiPropertyOptional({ type: String, format: 'uuid' }) disciplineId?: string;
+  @ApiPropertyOptional({ type: String, format: 'uuid' }) statusId?: string;
   @ApiPropertyOptional() statusCode?: string;
   @ApiPropertyOptional({ enum: PublicationStatus }) publicationStatus?: PublicationStatus;
-  @ApiPropertyOptional() hasRank?: boolean;
-  @ApiPropertyOptional() archived: 'true' | 'false' | 'all' = 'false';
-  @ApiPropertyOptional() sortBy: 'rank' | 'points' | 'timeSeconds' | 'penalties' | 'createdAt' =
+  @ApiPropertyOptional({ type: Boolean }) hasRank?: boolean;
+  @ApiPropertyOptional({ type: String, enum: ['true', 'false', 'all'], default: 'false' })
+  archived: 'true' | 'false' | 'all' = 'false';
+  @ApiPropertyOptional({
+    type: String,
+    enum: ['rank', 'points', 'timeSeconds', 'penalties', 'createdAt'],
+    default: 'rank',
+  })
+  sortBy: 'rank' | 'points' | 'timeSeconds' | 'penalties' | 'createdAt' =
     'rank';
-  @ApiPropertyOptional() sortOrder: 'asc' | 'desc' = 'asc';
+  @ApiPropertyOptional({ type: String, enum: ['asc', 'desc'], default: 'asc' })
+  sortOrder: 'asc' | 'desc' = 'asc';
 }

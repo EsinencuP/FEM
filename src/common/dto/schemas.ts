@@ -8,6 +8,9 @@ export const nullableString = (max: number): z.ZodNullable<z.ZodString> =>
 export const recordStatusSchema = z.enum(RecordStatus);
 export const publicationStatusSchema = z.enum(PublicationStatus);
 export const verificationStatusSchema = z.enum(VerificationStatus);
+export const queryBooleanSchema = z
+  .union([z.boolean(), z.enum(['true', 'false'])])
+  .transform((value) => value === true || value === 'true');
 
 export const dateStringSchema = z
   .string()
@@ -43,6 +46,15 @@ export function ensureDateOrder(
       code: 'custom',
       path: ['endDate'],
       message: 'endDate must not be earlier than startDate',
+    });
+  }
+}
+
+export function requireAtLeastOneField(value: object, context: z.RefinementCtx): void {
+  if (Object.keys(value).length === 0) {
+    context.addIssue({
+      code: 'custom',
+      message: 'At least one field must be provided',
     });
   }
 }

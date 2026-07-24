@@ -1,0 +1,17 @@
+meta {
+  name: Negative - invalid pagination
+  type: http
+  seq: 11
+}
+
+get {
+  url: {{baseUrl}}/athletes?page=0&limit=101
+  body: none
+  auth: none
+}
+
+tests {
+  test("invalid pagination returns 400", function () {
+    expect(res.getStatus()).to.equal(400);
+  });
+}

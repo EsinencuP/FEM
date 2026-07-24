@@ -8,6 +8,7 @@ import {
   nullableDateStringSchema,
   recordStatusSchema,
   requiredString,
+  requireAtLeastOneField,
   sortOrderSchema,
   uuidSchema,
 } from '../../../common/dto/schemas';
@@ -31,21 +32,23 @@ export class CreateCompetitionClassDto {
   @ApiProperty({ format: 'uuid' }) competitionEventId!: string;
   @ApiProperty() title!: string;
   @ApiProperty({ format: 'uuid' }) disciplineId!: string;
-  @ApiPropertyOptional({ nullable: true }) category?: string | null;
-  @ApiPropertyOptional({ nullable: true }) level?: string | null;
-  @ApiPropertyOptional({ format: 'date', nullable: true }) competitionDate?: Date | null;
+  @ApiPropertyOptional({ type: String, nullable: true }) category?: string | null;
+  @ApiPropertyOptional({ type: String, nullable: true }) level?: string | null;
+  @ApiPropertyOptional({ type: String, format: 'date', nullable: true })
+  competitionDate?: Date | null;
   @ApiPropertyOptional({ minimum: 0 }) sortOrder?: number;
   @ApiPropertyOptional({ enum: RecordStatus }) status?: RecordStatus;
 }
 
 export class UpdateCompetitionClassDto {
-  static readonly schema = fields.partial().strict();
+  static readonly schema = fields.partial().strict().superRefine(requireAtLeastOneField);
   @ApiPropertyOptional({ format: 'uuid' }) competitionEventId?: string;
   @ApiPropertyOptional() title?: string;
   @ApiPropertyOptional({ format: 'uuid' }) disciplineId?: string;
-  @ApiPropertyOptional({ nullable: true }) category?: string | null;
-  @ApiPropertyOptional({ nullable: true }) level?: string | null;
-  @ApiPropertyOptional({ nullable: true }) competitionDate?: Date | null;
+  @ApiPropertyOptional({ type: String, nullable: true }) category?: string | null;
+  @ApiPropertyOptional({ type: String, nullable: true }) level?: string | null;
+  @ApiPropertyOptional({ type: String, format: 'date', nullable: true })
+  competitionDate?: Date | null;
   @ApiPropertyOptional({ minimum: 0 }) sortOrder?: number;
   @ApiPropertyOptional({ enum: RecordStatus }) status?: RecordStatus;
 }
@@ -64,16 +67,24 @@ export class CompetitionClassListQueryDto {
       sortOrder: sortOrderSchema,
     })
     .strict();
-  @ApiPropertyOptional({ default: 1 }) page = 1;
-  @ApiPropertyOptional({ default: 20, maximum: 100 }) limit = 20;
-  @ApiPropertyOptional() competitionEventId?: string;
-  @ApiPropertyOptional() disciplineId?: string;
+  @ApiPropertyOptional({ type: 'integer', default: 1, minimum: 1 }) page = 1;
+  @ApiPropertyOptional({ type: 'integer', default: 20, minimum: 1, maximum: 100 })
+  limit = 20;
+  @ApiPropertyOptional({ type: String, format: 'uuid' }) competitionEventId?: string;
+  @ApiPropertyOptional({ type: String, format: 'uuid' }) disciplineId?: string;
   @ApiPropertyOptional() category?: string;
   @ApiPropertyOptional() level?: string;
   @ApiPropertyOptional({ enum: RecordStatus }) status?: RecordStatus;
-  @ApiPropertyOptional() competitionDate?: Date;
-  @ApiPropertyOptional() archived: 'true' | 'false' | 'all' = 'false';
-  @ApiPropertyOptional() sortBy: 'competitionDate' | 'sortOrder' | 'title' | 'createdAt' =
+  @ApiPropertyOptional({ type: String, format: 'date' }) competitionDate?: Date;
+  @ApiPropertyOptional({ type: String, enum: ['true', 'false', 'all'], default: 'false' })
+  archived: 'true' | 'false' | 'all' = 'false';
+  @ApiPropertyOptional({
+    type: String,
+    enum: ['competitionDate', 'sortOrder', 'title', 'createdAt'],
+    default: 'sortOrder',
+  })
+  sortBy: 'competitionDate' | 'sortOrder' | 'title' | 'createdAt' =
     'sortOrder';
-  @ApiPropertyOptional() sortOrder: 'asc' | 'desc' = 'asc';
+  @ApiPropertyOptional({ type: String, enum: ['asc', 'desc'], default: 'asc' })
+  sortOrder: 'asc' | 'desc' = 'asc';
 }

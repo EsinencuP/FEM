@@ -2,6 +2,11 @@
 
 Автономный backend и первая PostgreSQL Database v1 для информационной платформы Национальной федерации конного спорта Молдовы. Репозиторий содержит NestJS REST foundation, Prisma-модель спортсменов, лошадей, клубов, информационных турниров, результатов и versioned ranking snapshots. Frontend, регистрация на турниры, production-интеграции и официальная формула рейтинга намеренно отсутствуют.
 
+> **Authentication is disabled for MVP development. Do not expose this API
+> publicly without an access-control layer.** Текущий `/api/v1` — приватная
+> административно-подобная поверхность: отдельные Public/Admin API, RBAC и
+> публичные allowlist-проекции ещё не реализованы.
+
 ## Требования
 
 - Node.js 22 LTS;
@@ -36,7 +41,10 @@ corepack prepare pnpm@11.9.0 --activate
    Copy-Item .env.example .env
    ```
 
-   Замените `change_me_local_only` в обеих связанных переменных. Значения `POSTGRES_PASSWORD` и пароль внутри `DATABASE_URL` должны совпадать.
+   Замените `change_me_local_only` в обеих связанных переменных. Значения
+   `POSTGRES_PASSWORD` и пароль внутри `DATABASE_URL` должны совпадать.
+   `CORS_ALLOWED_ORIGINS` — разделённый запятыми список точных frontend origins
+   без путей и wildcard. Production не запускается с пустым списком.
 
 3. Запустите PostgreSQL 16:
 
@@ -50,8 +58,19 @@ corepack prepare pnpm@11.9.0 --activate
    pnpm prisma:validate
    pnpm prisma:generate
    pnpm prisma:migrate:dev
-   pnpm prisma:seed
+   ALLOW_DEMO_SEED=true pnpm prisma:seed
    ```
+
+   В PowerShell demo seed требует явного opt-in только для текущего процесса:
+
+   ```powershell
+   $env:ALLOW_DEMO_SEED = 'true'
+   pnpm prisma:seed
+   Remove-Item Env:ALLOW_DEMO_SEED
+   ```
+
+   Seed отклоняет production, удалённые PostgreSQL hosts, неизвестные имена БД
+   и коллизии demo natural key с non-demo записями до первого изменения.
 
 5. Запустите backend:
 
@@ -72,7 +91,7 @@ MVP baseline состоит из двух reviewed migrations:
 
 ```bash
 pnpm prisma:migrate:dev
-pnpm prisma:seed
+ALLOW_DEMO_SEED=true pnpm prisma:seed
 ```
 
 Для применения уже закоммиченных миграций в контролируемой среде:
@@ -97,12 +116,14 @@ pnpm prisma:migrate:deploy
 | `pnpm test`                  | Unit-тесты                                             |
 | `pnpm test:e2e`              | E2E-тест с реальным локальным PostgreSQL               |
 | `pnpm test:db`               | PostgreSQL constraint tests на выделенной test-базе    |
+| `pnpm test:performance`      | Локальный opt-in smoke на 10 000 результатов           |
+| `pnpm openapi:export`        | Обновление versioned OpenAPI snapshot для frontend     |
 | `pnpm prisma:generate`       | Генерация Prisma Client                                |
 | `pnpm prisma:validate`       | Проверка Prisma schema                                 |
 | `pnpm prisma:format`         | Форматирование Prisma schema                           |
 | `pnpm prisma:migrate:dev`    | Создание/применение dev-миграций                       |
 | `pnpm prisma:migrate:deploy` | Применение готовых миграций                            |
-| `pnpm prisma:seed`           | Повторяемый fictional demo seed                        |
+| `pnpm prisma:seed`           | Demo seed; требует явного `ALLOW_DEMO_SEED=true`       |
 | `pnpm prisma:studio`         | Локальный Prisma Studio                                |
 | `pnpm db:up`                 | Запуск локального PostgreSQL с ожиданием healthcheck   |
 | `pnpm db:down`               | Остановка локального Compose-стека без удаления volume |
@@ -112,47 +133,59 @@ pnpm prisma:migrate:deploy
 
 ## Тестирование и quality gate
 
-Полная локальная проверка без HTTP smoke-теста:
-
-```bash
-pnpm prisma:format
-pnpm prisma:validate
-pnpm prisma:generate
-pnpm prisma:migrate:dev
-pnpm prisma:seed
-pnpm lint
-pnpm typecheck
-pnpm test
-pnpm test:e2e
-pnpm build
-```
-
-Для E2E сначала выполните `pnpm db:up`, затем `pnpm test:e2e`.
-
-Constraint suite защищена от случайного запуска на development/production database. Создайте отдельную локальную базу и задайте process-local URL с теми же credentials, что в `.env`:
+DB integration и E2E являются mutating suites. Они откажутся запускаться на
+development/remote database. Создайте отдельную локальную базу и задайте
+process-local URL с теми же local credentials, что в `.env`:
 
 ```powershell
 docker exec fem-postgres-local psql -U app -d postgres -c "CREATE DATABASE equestrian_federation_test;"
 $env:NODE_ENV = 'test'
+$env:ALLOW_DEMO_SEED = 'true'
 $env:DATABASE_URL = '<локальный URL из .env с именем equestrian_federation_test>'
 pnpm prisma:migrate:deploy
 pnpm prisma:seed
 pnpm test:db
+pnpm test:e2e
 ```
 
-GitHub Actions использует ephemeral PostgreSQL 16 с непроизводственными credentials и выполняет migration, seed и constraint tests после обычных validate/generate/lint/typecheck/unit gates.
+После подготовки test/audit database полный PowerShell quality gate:
+
+```powershell
+pnpm prisma:format
+pnpm prisma:validate
+pnpm prisma:generate
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm test:db
+pnpm test:e2e
+pnpm build
+```
+
+Не запускайте mutating suites из IDE с произвольной Jest-конфигурацией:
+официальные configs и сами suites выполняют одинаковую safety-проверку.
+
+Generic POST/PATCH для соревнований и результатов намеренно не принимает
+`publicationStatus`: до появления authentication, permissions и atomic audit
+данные могут оставаться только черновиками.
+
+GitHub Actions использует ephemeral PostgreSQL 16 с непроизводственными credentials и выполняет migration, seed, constraint и HTTP E2E tests после обычных validate/generate/lint/typecheck/unit gates.
 
 ## Структура
 
 ```text
 src/
-  common/pipes/       общий Zod validation pipe для будущих входных DTO
+  bootstrap/          единая HTTP/Swagger-конфигурация
+  common/database/    safety, archive/reference policy и Serializable retry
+  common/pipes/       общий Zod validation pipe
   config/             единая Zod-валидация env и типизированный доступ к config
   database/           глобальный DatabaseModule и singleton PrismaService
   health/             health endpoint с реальным SELECT 1
+  modules/            MVP controllers/services/strict DTO
 prisma/               schema, reviewed migrations и idempotent demo seed
-test/                 HTTP E2E и PostgreSQL constraint tests
+test/                 HTTP/OpenAPI/concurrency E2E и PostgreSQL constraint tests
 docs/database/        предложения, audit, baseline, delete/index policy и migration safety
+docs/stabilization/   четыре цикла аудита, defect/fix registers и final report
 docs/                 data dictionary, ER diagram, спецификация, правила, вопросы и ADR
 .github/workflows/    CI quality gate
 docker-compose.yml    только локальный PostgreSQL 16
@@ -165,6 +198,8 @@ Pino пишет структурированные JSON-логи в production �
 ## Правила безопасности
 
 - `.env` и все его варианты исключены из Git; коммитить можно только `.env.example` без реальных секретов.
+- Не открывайте текущий `/api/v1` в Интернет: write endpoints не имеют
+  authentication, RBAC, 2FA или rate limiting.
 - Не используйте локальные credentials в staging/production.
 - Не логируйте `DATABASE_URL`, пароли, токены, cookie и Authorization headers.
 - Не включайте CORS глобально до согласования точных frontend origins.

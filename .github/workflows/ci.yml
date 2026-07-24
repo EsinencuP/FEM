@@ -34,6 +34,24 @@ jobs:
       PORT: 3000
       API_PREFIX: api
       LOG_LEVEL: silent
+      CORS_ALLOWED_ORIGINS: http://localhost:3001
+      AUTH_ENCRYPTION_KEY: 0000000000000000000000000000000000000000000000000000000000000000
+      AUTH_COOKIE_NAME: fem_admin_session
+      AUTH_SESSION_TTL_MINUTES: 480
+      AUTH_SESSION_IDLE_MINUTES: 30
+      AUTH_MAX_FAILED_ATTEMPTS: 5
+      AUTH_LOCKOUT_MINUTES: 15
+      HSTS_ENABLED: 'false'
+      TRUST_PROXY_HOPS: 0
+      RATE_LIMIT_DEFAULT_PER_MINUTE: 120
+      RATE_LIMIT_AUTH_PER_MINUTE: 5
+      RATE_LIMIT_ADMIN_PER_MINUTE: 300
+      RATE_LIMIT_PUBLIC_PER_MINUTE: 600
+      RATE_LIMIT_SEARCH_PER_MINUTE: 120
+      RATE_LIMIT_FILES_PER_MINUTE: 60
+      RATE_LIMIT_INTEGRATIONS_PER_MINUTE: 300
+      SWAGGER_ENABLED: 'true'
+      ALLOW_DEMO_SEED: 'true'
       DATABASE_URL: postgresql://ci_user:ci_password@localhost:5432/ci_database?schema=public
     steps:
       - name: Checkout
@@ -76,6 +94,12 @@ jobs:
         run: |
           pnpm prisma:seed
           pnpm test:db
+
+      - name: HTTP E2E tests
+        run: pnpm test:e2e
+
+      - name: Verify committed OpenAPI contract
+        run: pnpm openapi:check
 
       - name: Build
         run: pnpm build

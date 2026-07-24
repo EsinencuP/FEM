@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import type { Country, Prisma } from '@prisma/client';
 
+import { assertActiveRecord } from '../../common/database/archive-policy';
+import { withSerializableTransaction } from '../../common/database/serializable-transaction';
 import {
   dataResponse,
   listResponse,
@@ -45,22 +47,32 @@ export class CountriesService {
   }
 
   async create(dto: CreateCountryDto): Promise<DataResponse<Country>> {
-    return dataResponse(await this.prisma.country.create({ data: dto }));
+    return withSerializableTransaction(this.prisma, async (transaction) =>
+      dataResponse(await transaction.country.create({ data: dto })),
+    );
   }
 
   async update(id: string, dto: UpdateCountryDto): Promise<DataResponse<Country>> {
-    return dataResponse(await this.prisma.country.update({ where: { id }, data: dto }));
+    return withSerializableTransaction(this.prisma, async (transaction) => {
+      const current = await transaction.country.findUniqueOrThrow({ where: { id } });
+      assertActiveRecord(current, 'country');
+      return dataResponse(await transaction.country.update({ where: { id }, data: dto }));
+    });
   }
 
   async archive(id: string): Promise<DataResponse<Country>> {
-    return dataResponse(
-      await this.prisma.country.update({ where: { id }, data: { archivedAt: new Date() } }),
+    return withSerializableTransaction(this.prisma, async (transaction) =>
+      dataResponse(
+        await transaction.country.update({ where: { id }, data: { archivedAt: new Date() } }),
+      ),
     );
   }
 
   async restore(id: string): Promise<DataResponse<Country>> {
-    return dataResponse(
-      await this.prisma.country.update({ where: { id }, data: { archivedAt: null } }),
+    return withSerializableTransaction(this.prisma, async (transaction) =>
+      dataResponse(
+        await transaction.country.update({ where: { id }, data: { archivedAt: null } }),
+      ),
     );
   }
 }

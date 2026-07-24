@@ -2,12 +2,14 @@ import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query } from 
 import { ApiCreatedResponse, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { ApiStandardErrors } from '../../common/decorators/api-contract.decorator';
+import { AdminProtected } from '../../common/decorators/admin-protected.decorator';
 import { CountriesService } from './countries.service';
 import { CountryListQueryDto, CreateCountryDto, UpdateCountryDto } from './dto/country.dto';
 
 @ApiTags('Countries')
 @ApiStandardErrors()
-@Controller('v1/countries')
+@AdminProtected()
+@Controller('v1/admin/countries')
 export class CountriesController {
   constructor(private readonly service: CountriesService) {}
 

@@ -5,6 +5,7 @@ import {
   archivedSchema,
   recordStatusSchema,
   requiredString,
+  requireAtLeastOneField,
   sortOrderSchema,
   uuidSchema,
 } from '../../../common/dto/schemas';
@@ -21,17 +22,24 @@ export class CreateClubDto {
     })
     .strict();
   @ApiProperty({ example: 'Demo Equestrian Club' }) name!: string;
-  @ApiPropertyOptional({ nullable: true }) legalName?: string | null;
-  @ApiPropertyOptional({ format: 'uuid', nullable: true }) countryId?: string | null;
-  @ApiPropertyOptional({ format: 'uuid', nullable: true }) nationalFederationId?: string | null;
+  @ApiPropertyOptional({ type: String, nullable: true }) legalName?: string | null;
+  @ApiPropertyOptional({ type: String, format: 'uuid', nullable: true })
+  countryId?: string | null;
+  @ApiPropertyOptional({ type: String, format: 'uuid', nullable: true })
+  nationalFederationId?: string | null;
   @ApiPropertyOptional({ enum: RecordStatus }) status?: RecordStatus;
 }
 export class UpdateClubDto {
-  static readonly schema = CreateClubDto.schema.partial().strict();
+  static readonly schema = CreateClubDto.schema
+    .partial()
+    .strict()
+    .superRefine(requireAtLeastOneField);
   @ApiPropertyOptional() name?: string;
-  @ApiPropertyOptional({ nullable: true }) legalName?: string | null;
-  @ApiPropertyOptional({ nullable: true }) countryId?: string | null;
-  @ApiPropertyOptional({ nullable: true }) nationalFederationId?: string | null;
+  @ApiPropertyOptional({ type: String, nullable: true }) legalName?: string | null;
+  @ApiPropertyOptional({ type: String, format: 'uuid', nullable: true })
+  countryId?: string | null;
+  @ApiPropertyOptional({ type: String, format: 'uuid', nullable: true })
+  nationalFederationId?: string | null;
   @ApiPropertyOptional({ enum: RecordStatus }) status?: RecordStatus;
 }
 export class ClubListQueryDto {
@@ -46,8 +54,9 @@ export class ClubListQueryDto {
       sortOrder: sortOrderSchema,
     })
     .strict();
-  @ApiPropertyOptional({ default: 1 }) page = 1;
-  @ApiPropertyOptional({ default: 20, maximum: 100 }) limit = 20;
+  @ApiPropertyOptional({ type: 'integer', default: 1, minimum: 1 }) page = 1;
+  @ApiPropertyOptional({ type: 'integer', default: 20, minimum: 1, maximum: 100 })
+  limit = 20;
   @ApiPropertyOptional() search?: string;
   @ApiPropertyOptional({ format: 'uuid' }) countryId?: string;
   @ApiPropertyOptional({ format: 'uuid' }) federationId?: string;

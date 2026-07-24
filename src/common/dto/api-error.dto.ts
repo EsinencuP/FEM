@@ -32,4 +32,7 @@ export class ApiErrorDto {
 
   @ApiProperty({ example: '/api/v1/athletes' })
   path!: string;
+
+  @ApiProperty({ example: '8f332177-5b36-4ec5-a691-df9bb4b2c9ec' })
+  requestId!: string;
 }

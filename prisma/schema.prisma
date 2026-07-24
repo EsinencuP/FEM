@@ -69,6 +69,10 @@ model User {
   updatedAt                  DateTime             @updatedAt @db.Timestamptz(3)
   userRoles                  UserRole[]           @relation("UserRoleUser")
   assignedUserRoles          UserRole[]           @relation("UserRoleAssigner")
+  credential                 UserCredential?
+  adminSessions              AdminSession[]
+  recoveryCodes              AdminRecoveryCode[]
+  idempotencyRecords         IdempotencyRecord[]
   auditLogs                  AuditLog[]
   importBatches              ImportBatch[]
   verifiedIdentifiers        ExternalIdentifier[]
@@ -77,6 +81,94 @@ model User {
   createdRankingSnapshots    RankingSnapshot[]
 
   @@index([status, archivedAt])
+}
+
+model UserCredential {
+  userId              String    @id @db.Uuid
+  passwordHash        String
+  totpSecretEncrypted String
+  twoFactorEnabledAt  DateTime  @db.Timestamptz(3)
+  failedLoginAttempts Int       @default(0)
+  lockedUntil         DateTime? @db.Timestamptz(3)
+  passwordChangedAt   DateTime  @default(now()) @db.Timestamptz(3)
+  lastTotpStep        BigInt?
+  createdAt           DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt           DateTime  @updatedAt @db.Timestamptz(3)
+  user                User      @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([lockedUntil])
+}
+
+model AdminSession {
+  id                         String              @id @default(uuid()) @db.Uuid
+  userId                     String              @db.Uuid
+  tokenHash                  String              @unique @db.Char(64)
+  previousTokenHash          String?             @unique @db.Char(64)
+  previousTokenExpiresAt     DateTime?           @db.Timestamptz(3)
+  csrfTokenHash              String              @db.Char(64)
+  secondFactorMethod         String              @default("TOTP") @db.VarChar(16)
+  tokenRotatedAt             DateTime?           @db.Timestamptz(3)
+  pendingTotpSecretEncrypted String?
+  pendingTotpExpiresAt       DateTime?           @db.Timestamptz(3)
+  expiresAt                  DateTime            @db.Timestamptz(3)
+  idleExpiresAt              DateTime            @db.Timestamptz(3)
+  lastSeenAt                 DateTime            @default(now()) @db.Timestamptz(3)
+  revokedAt                  DateTime?           @db.Timestamptz(3)
+  revokeReason               String?             @db.VarChar(200)
+  ipAddress                  String?             @db.VarChar(64)
+  userAgent                  String?             @db.VarChar(512)
+  createdAt                  DateTime            @default(now()) @db.Timestamptz(3)
+  updatedAt                  DateTime            @updatedAt @db.Timestamptz(3)
+  user                       User                @relation(fields: [userId], references: [id], onDelete: Restrict)
+  auditLogs                  AuditLog[]
+  idempotencyRecords         IdempotencyRecord[]
+
+  @@index([userId, revokedAt, expiresAt])
+  @@index([expiresAt])
+  @@index([idleExpiresAt])
+}
+
+model AdminRecoveryCode {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  codeHash  String    @unique @db.Char(64)
+  usedAt    DateTime? @db.Timestamptz(3)
+  createdAt DateTime  @default(now()) @db.Timestamptz(3)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([userId, usedAt])
+}
+
+model RateLimitBucket {
+  key             String    @id @db.VarChar(200)
+  throttlerName   String    @db.VarChar(50)
+  windowStartedAt DateTime  @db.Timestamptz(3)
+  expiresAt       DateTime  @db.Timestamptz(3)
+  totalHits       Int
+  blockedUntil    DateTime? @db.Timestamptz(3)
+  updatedAt       DateTime  @updatedAt @db.Timestamptz(3)
+
+  @@index([expiresAt])
+  @@index([blockedUntil])
+}
+
+model IdempotencyRecord {
+  id             String       @id @db.Char(64)
+  actorId        String       @db.Uuid
+  sessionId      String       @db.Uuid
+  key            String       @db.VarChar(128)
+  method         String       @db.VarChar(10)
+  path           String       @db.VarChar(500)
+  requestHash    String       @db.Char(64)
+  responseStatus Int
+  responseBody   Json
+  expiresAt      DateTime     @db.Timestamptz(3)
+  createdAt      DateTime     @default(now()) @db.Timestamptz(3)
+  actor          User         @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  session        AdminSession @relation(fields: [sessionId], references: [id], onDelete: Restrict)
+
+  @@index([actorId, createdAt(sort: Desc)])
+  @@index([expiresAt])
 }
 
 model Role {
@@ -112,21 +204,24 @@ model UserRole {
 }
 
 model AuditLog {
-  id         String   @id @default(uuid()) @db.Uuid
-  actorId    String?  @db.Uuid
+  id         String        @id @default(uuid()) @db.Uuid
+  actorId    String?       @db.Uuid
   action     String
   entityType String
-  entityId   String   @db.Uuid
+  entityId   String        @db.Uuid
   oldData    Json?
   newData    Json?
   reason     String?
   requestId  String?
-  createdAt  DateTime @default(now()) @db.Timestamptz(3)
-  actor      User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  sessionId  String?       @db.Uuid
+  createdAt  DateTime      @default(now()) @db.Timestamptz(3)
+  actor      User?         @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  session    AdminSession? @relation(fields: [sessionId], references: [id], onDelete: Restrict)
 
   @@index([entityType, entityId, createdAt(sort: Desc)])
   @@index([actorId, createdAt(sort: Desc)])
   @@index([requestId])
+  @@index([sessionId, createdAt(sort: Desc)])
 }
 
 model ImportBatch {
@@ -216,6 +311,7 @@ model Document {
 
 model ExternalIdentifier {
   id                   String             @id @default(uuid()) @db.Uuid
+  version              Int                @default(1)
   entityType           String
   entityId             String             @db.Uuid
   identifierType       String
@@ -248,6 +344,7 @@ model ExternalIdentifier {
 
 model Country {
   id                  String               @id @default(uuid()) @db.Uuid
+  version             Int                  @default(1)
   isoAlpha2           String               @unique @db.Char(2)
   isoAlpha3           String               @unique @db.Char(3)
   name                String
@@ -283,6 +380,7 @@ model NationalFederation {
 
 model Discipline {
   id                    String                 @id @default(uuid()) @db.Uuid
+  version               Int                    @default(1)
   code                  String                 @unique
   name                  String
   description           String?
@@ -298,6 +396,7 @@ model Discipline {
 
 model Club {
   id                   String                  @id @default(uuid()) @db.Uuid
+  version              Int                     @default(1)
   name                 String
   legalName            String?
   countryId            String?                 @db.Uuid
@@ -333,6 +432,7 @@ model ResultStatus {
 
 model Athlete {
   id                   String                  @id @default(uuid()) @db.Uuid
+  version              Int                     @default(1)
   firstName            String
   lastName             String
   displayName          String
@@ -362,6 +462,7 @@ model Athlete {
 
 model Horse {
   id                 String                 @id @default(uuid()) @db.Uuid
+  version            Int                    @default(1)
   passportName       String?
   displayName        String
   dateOfBirth        DateTime?              @db.Date
@@ -392,6 +493,7 @@ model Horse {
 
 model Owner {
   id          String           @id @default(uuid()) @db.Uuid
+  version     Int              @default(1)
   displayName String
   ownerType   String?
   countryId   String?          @db.Uuid
@@ -409,6 +511,7 @@ model Owner {
 
 model AthleteClubMembership {
   id               String    @id @default(uuid()) @db.Uuid
+  version          Int       @default(1)
   athleteId        String    @db.Uuid
   clubId           String    @db.Uuid
   membershipType   String?
@@ -431,6 +534,7 @@ model AthleteClubMembership {
 
 model AthleteHorseRelation {
   id               String      @id @default(uuid()) @db.Uuid
+  version          Int         @default(1)
   athleteId        String      @db.Uuid
   horseId          String      @db.Uuid
   relationType     String?
@@ -456,6 +560,7 @@ model AthleteHorseRelation {
 
 model HorseOwnership {
   id               String    @id @default(uuid()) @db.Uuid
+  version          Int       @default(1)
   horseId          String    @db.Uuid
   ownerId          String    @db.Uuid
   startDate        DateTime  @db.Date
@@ -478,6 +583,7 @@ model HorseOwnership {
 
 model CompetitionEvent {
   id                String             @id @default(uuid()) @db.Uuid
+  version           Int                @default(1)
   title             String
   slug              String             @unique
   description       String?
@@ -507,6 +613,7 @@ model CompetitionEvent {
 
 model CompetitionClass {
   id                 String              @id @default(uuid()) @db.Uuid
+  version            Int                 @default(1)
   competitionEventId String              @db.Uuid
   title              String
   disciplineId       String              @db.Uuid
@@ -530,6 +637,7 @@ model CompetitionClass {
 
 model CompetitionResult {
   id                  String               @id @default(uuid()) @db.Uuid
+  version             Int                  @default(1)
   competitionClassId  String               @db.Uuid
   athleteId           String               @db.Uuid
   horseId             String               @db.Uuid
@@ -569,6 +677,7 @@ model CompetitionResult {
 
 model ResultMetric {
   id                  String            @id @default(uuid()) @db.Uuid
+  version             Int               @default(1)
   competitionResultId String            @db.Uuid
   metricCode          String
   numericValue        Decimal?          @db.Decimal(18, 6)

@@ -1,7 +1,12 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { z } from 'zod';
 
-import { archivedSchema, requiredString, sortOrderSchema } from '../../../common/dto/schemas';
+import {
+  archivedSchema,
+  requiredString,
+  requireAtLeastOneField,
+  sortOrderSchema,
+} from '../../../common/dto/schemas';
 import { paginationSchema } from '../../../common/pagination/pagination.dto';
 
 export class CreateCountryDto {
@@ -30,7 +35,10 @@ export class CreateCountryDto {
 }
 
 export class UpdateCountryDto {
-  static readonly schema = CreateCountryDto.schema.partial().strict();
+  static readonly schema = CreateCountryDto.schema
+    .partial()
+    .strict()
+    .superRefine(requireAtLeastOneField);
 
   @ApiPropertyOptional({ example: 'MD' })
   isoAlpha2?: string;
@@ -52,10 +60,10 @@ export class CountryListQueryDto {
     })
     .strict();
 
-  @ApiPropertyOptional({ default: 1, minimum: 1 })
+  @ApiPropertyOptional({ type: 'integer', default: 1, minimum: 1 })
   page = 1;
 
-  @ApiPropertyOptional({ default: 20, maximum: 100 })
+  @ApiPropertyOptional({ type: 'integer', default: 20, minimum: 1, maximum: 100 })
   limit = 20;
 
   @ApiPropertyOptional({ maxLength: 200 })

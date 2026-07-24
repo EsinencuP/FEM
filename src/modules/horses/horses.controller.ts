@@ -2,6 +2,7 @@ import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query } from 
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { ApiStandardErrors } from '../../common/decorators/api-contract.decorator';
+import { AdminProtected } from '../../common/decorators/admin-protected.decorator';
 import { PaginationQueryDto } from '../../common/pagination/pagination.dto';
 import {
   CreateExternalIdentifierDto,
@@ -23,7 +24,8 @@ const uuidPipe = (): ParseUUIDPipe => new ParseUUIDPipe({ version: '4' as const 
 
 @ApiTags('Horses')
 @ApiStandardErrors()
-@Controller('v1/horses')
+@AdminProtected()
+@Controller('v1/admin/horses')
 export class HorsesController {
   constructor(
     private readonly service: HorsesService,
@@ -125,8 +127,9 @@ export class HorsesController {
   @Get(':id/identifiers')
   identifierList(
     @Param('id', uuidPipe()) id: string,
+    @Query() query: PaginationQueryDto,
   ): ReturnType<ExternalIdentifiersService['list']> {
-    return this.identifiers.list('Horse', id);
+    return this.identifiers.list('Horse', id, query);
   }
 
   @Post(':id/identifiers')

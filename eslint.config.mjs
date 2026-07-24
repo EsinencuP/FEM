@@ -12,7 +12,7 @@ export default tseslint.config(
   ...tseslint.configs.stylisticTypeChecked,
   prettier,
   {
-    files: ['src/**/*.ts', 'test/**/*.ts', 'prisma/**/*.ts'],
+    files: ['src/**/*.ts', 'test/**/*.ts', 'prisma/**/*.ts', 'scripts/**/*.ts'],
     languageOptions: {
       globals: {
         ...globals.node,

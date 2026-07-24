@@ -1,6 +1,8 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ApiStandardErrors } from '../../common/decorators/api-contract.decorator';
+import { AdminProtected } from '../../common/decorators/admin-protected.decorator';
+import { PaginationQueryDto } from '../../common/pagination/pagination.dto';
 import {
   CreateExternalIdentifierDto,
   UpdateExternalIdentifierDto,
@@ -11,7 +13,8 @@ import { ClubListQueryDto, CreateClubDto, UpdateClubDto } from './dto/club.dto';
 const uuidPipe = (): ParseUUIDPipe => new ParseUUIDPipe({ version: '4' as const });
 @ApiTags('Clubs')
 @ApiStandardErrors()
-@Controller('v1/clubs')
+@AdminProtected()
+@Controller('v1/admin/clubs')
 export class ClubsController {
   constructor(
     private readonly service: ClubsService,
@@ -44,8 +47,9 @@ export class ClubsController {
   }
   @Get(':id/identifiers') identifiersList(
     @Param('id', uuidPipe()) id: string,
+    @Query() query: PaginationQueryDto,
   ): ReturnType<ExternalIdentifiersService['list']> {
-    return this.identifiers.list('Club', id);
+    return this.identifiers.list('Club', id, query);
   }
   @Post(':id/identifiers') identifiersCreate(
     @Param('id', uuidPipe()) id: string,

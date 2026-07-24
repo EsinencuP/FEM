@@ -5,6 +5,7 @@ import {
   archivedSchema,
   recordStatusSchema,
   requiredString,
+  requireAtLeastOneField,
   sortOrderSchema,
   uuidSchema,
 } from '../../../common/dto/schemas';
@@ -19,15 +20,20 @@ export class CreateOwnerDto {
     })
     .strict();
   @ApiProperty({ example: 'Fictional Owner 1' }) displayName!: string;
-  @ApiPropertyOptional({ nullable: true }) ownerType?: string | null;
-  @ApiPropertyOptional({ nullable: true, format: 'uuid' }) countryId?: string | null;
+  @ApiPropertyOptional({ type: String, nullable: true }) ownerType?: string | null;
+  @ApiPropertyOptional({ type: String, nullable: true, format: 'uuid' })
+  countryId?: string | null;
   @ApiPropertyOptional({ enum: RecordStatus }) status?: RecordStatus;
 }
 export class UpdateOwnerDto {
-  static readonly schema = CreateOwnerDto.schema.partial().strict();
+  static readonly schema = CreateOwnerDto.schema
+    .partial()
+    .strict()
+    .superRefine(requireAtLeastOneField);
   @ApiPropertyOptional() displayName?: string;
-  @ApiPropertyOptional({ nullable: true }) ownerType?: string | null;
-  @ApiPropertyOptional({ nullable: true }) countryId?: string | null;
+  @ApiPropertyOptional({ type: String, nullable: true }) ownerType?: string | null;
+  @ApiPropertyOptional({ type: String, format: 'uuid', nullable: true })
+  countryId?: string | null;
   @ApiPropertyOptional({ enum: RecordStatus }) status?: RecordStatus;
 }
 export class OwnerListQueryDto {
@@ -41,10 +47,11 @@ export class OwnerListQueryDto {
       sortOrder: sortOrderSchema,
     })
     .strict();
-  @ApiPropertyOptional({ default: 1 }) page = 1;
-  @ApiPropertyOptional({ default: 20, maximum: 100 }) limit = 20;
+  @ApiPropertyOptional({ type: 'integer', default: 1, minimum: 1 }) page = 1;
+  @ApiPropertyOptional({ type: 'integer', default: 20, minimum: 1, maximum: 100 })
+  limit = 20;
   @ApiPropertyOptional() search?: string;
-  @ApiPropertyOptional() countryId?: string;
+  @ApiPropertyOptional({ type: String, format: 'uuid' }) countryId?: string;
   @ApiPropertyOptional({ enum: RecordStatus }) status?: RecordStatus;
   @ApiPropertyOptional({ enum: ['true', 'false', 'all'], default: 'false' }) archived:
     'true' | 'false' | 'all' = 'false';

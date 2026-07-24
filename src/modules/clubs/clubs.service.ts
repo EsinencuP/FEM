@@ -1,5 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import type { Club, Prisma } from '@prisma/client';
+import { assertActiveRecord } from '../../common/database/archive-policy';
+import { validateReferenceStates } from '../../common/database/reference-policy';
+import { withSerializableTransaction } from '../../common/database/serializable-transaction';
 import {
   dataResponse,
   listResponse,
@@ -77,19 +80,96 @@ export class ClubsService {
     );
   }
   async create(dto: CreateClubDto): Promise<DataResponse<Club>> {
-    return dataResponse(await this.prisma.club.create({ data: dto }));
+    return withSerializableTransaction(this.prisma, async (transaction) => {
+      const [country, federation] = await Promise.all([
+        dto.countryId
+          ? transaction.country.findUnique({
+              where: { id: dto.countryId },
+              select: { archivedAt: true, isDemo: true },
+            })
+          : Promise.resolve(null),
+        dto.nationalFederationId
+          ? transaction.nationalFederation.findUnique({
+              where: { id: dto.nationalFederationId },
+              select: { archivedAt: true, isDemo: true },
+            })
+          : Promise.resolve(null),
+      ]);
+      const isDemo = validateReferenceStates([
+        ...(dto.countryId ? [{ resourceName: 'Country', state: country }] : []),
+        ...(dto.nationalFederationId
+          ? [{ resourceName: 'National federation', state: federation }]
+          : []),
+      ]);
+      return dataResponse(await transaction.club.create({ data: Object.assign({ isDemo }, dto) }));
+    });
   }
   async update(id: string, dto: UpdateClubDto): Promise<DataResponse<Club>> {
-    return dataResponse(await this.prisma.club.update({ where: { id }, data: dto }));
+    return withSerializableTransaction(this.prisma, async (transaction) => {
+      const current = await transaction.club.findUniqueOrThrow({ where: { id } });
+      assertActiveRecord(current, 'club');
+      const [country, federation] = await Promise.all([
+        dto.countryId
+          ? transaction.country.findUnique({
+              where: { id: dto.countryId },
+              select: { archivedAt: true, isDemo: true },
+            })
+          : Promise.resolve(null),
+        dto.nationalFederationId
+          ? transaction.nationalFederation.findUnique({
+              where: { id: dto.nationalFederationId },
+              select: { archivedAt: true, isDemo: true },
+            })
+          : Promise.resolve(null),
+      ]);
+      validateReferenceStates(
+        [
+          ...(dto.countryId ? [{ resourceName: 'Country', state: country }] : []),
+          ...(dto.nationalFederationId
+            ? [{ resourceName: 'National federation', state: federation }]
+            : []),
+        ],
+        current.isDemo,
+      );
+      return dataResponse(await transaction.club.update({ where: { id }, data: dto }));
+    });
   }
   async archive(id: string): Promise<DataResponse<Club>> {
-    return dataResponse(
-      await this.prisma.club.update({ where: { id }, data: { archivedAt: new Date() } }),
+    return withSerializableTransaction(this.prisma, async (transaction) =>
+      dataResponse(
+        await transaction.club.update({ where: { id }, data: { archivedAt: new Date() } }),
+      ),
     );
   }
   async restore(id: string): Promise<DataResponse<Club>> {
-    return dataResponse(
-      await this.prisma.club.update({ where: { id }, data: { archivedAt: null } }),
-    );
+    return withSerializableTransaction(this.prisma, async (transaction) => {
+      const current = await transaction.club.findUniqueOrThrow({ where: { id } });
+      const [country, federation] = await Promise.all([
+        current.countryId
+          ? transaction.country.findUnique({
+              where: { id: current.countryId },
+              select: { archivedAt: true, isDemo: true },
+            })
+          : Promise.resolve(null),
+        current.nationalFederationId
+          ? transaction.nationalFederation.findUnique({
+              where: { id: current.nationalFederationId },
+              select: { archivedAt: true, isDemo: true },
+            })
+          : Promise.resolve(null),
+      ]);
+      validateReferenceStates(
+        [
+          ...(current.countryId ? [{ resourceName: 'Country', state: country }] : []),
+          ...(current.nationalFederationId
+            ? [{ resourceName: 'National federation', state: federation }]
+            : []),
+        ],
+        current.isDemo,
+      );
+      return dataResponse(
+        await transaction.club.update({ where: { id }, data: { archivedAt: null } }),
+      );
+    });
   }
 }

@@ -1,0 +1,9 @@
+{
+  "version": "1",
+  "name": "FEM Backend API",
+  "type": "collection",
+  "ignore": [
+    "node_modules",
+    ".git"
+  ]
+}

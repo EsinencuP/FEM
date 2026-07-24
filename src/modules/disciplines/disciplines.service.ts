@@ -1,5 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import type { Discipline, Prisma } from '@prisma/client';
+import { assertActiveRecord } from '../../common/database/archive-policy';
+import { withSerializableTransaction } from '../../common/database/serializable-transaction';
 import {
   dataResponse,
   listResponse,
@@ -45,19 +47,29 @@ export class DisciplinesService {
     return dataResponse(await this.prisma.discipline.findUniqueOrThrow({ where: { id } }));
   }
   async create(dto: CreateDisciplineDto): Promise<DataResponse<Discipline>> {
-    return dataResponse(await this.prisma.discipline.create({ data: dto }));
+    return withSerializableTransaction(this.prisma, async (transaction) =>
+      dataResponse(await transaction.discipline.create({ data: dto })),
+    );
   }
   async update(id: string, dto: UpdateDisciplineDto): Promise<DataResponse<Discipline>> {
-    return dataResponse(await this.prisma.discipline.update({ where: { id }, data: dto }));
+    return withSerializableTransaction(this.prisma, async (transaction) => {
+      const current = await transaction.discipline.findUniqueOrThrow({ where: { id } });
+      assertActiveRecord(current, 'discipline');
+      return dataResponse(await transaction.discipline.update({ where: { id }, data: dto }));
+    });
   }
   async archive(id: string): Promise<DataResponse<Discipline>> {
-    return dataResponse(
-      await this.prisma.discipline.update({ where: { id }, data: { archivedAt: new Date() } }),
+    return withSerializableTransaction(this.prisma, async (transaction) =>
+      dataResponse(
+        await transaction.discipline.update({ where: { id }, data: { archivedAt: new Date() } }),
+      ),
     );
   }
   async restore(id: string): Promise<DataResponse<Discipline>> {
-    return dataResponse(
-      await this.prisma.discipline.update({ where: { id }, data: { archivedAt: null } }),
+    return withSerializableTransaction(this.prisma, async (transaction) =>
+      dataResponse(
+        await transaction.discipline.update({ where: { id }, data: { archivedAt: null } }),
+      ),
     );
   }
 }

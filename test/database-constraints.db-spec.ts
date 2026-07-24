@@ -8,7 +8,8 @@ import {
   RecordStatus,
 } from '@prisma/client';
 
-import { seedDatabase } from '../prisma/seed';
+import { demoId, seedDatabase } from '../prisma/seed';
+import { assertSafeTestDatabaseEnvironment } from '../src/common/database/database-safety';
 
 const prisma = new PrismaClient();
 
@@ -42,14 +43,8 @@ describe('Database v1 PostgreSQL constraints', () => {
   let rankingPeriodId: string;
 
   beforeAll(async () => {
-    expect(process.env.NODE_ENV).toBe('test');
+    assertSafeTestDatabaseEnvironment(process.env);
     await prisma.$connect();
-    const databaseRows = await prisma.$queryRaw<{ current_database: string }[]>`
-      SELECT current_database()
-    `;
-    expect(['equestrian_federation_test', 'ci_database']).toContain(
-      databaseRows[0]?.current_database,
-    );
 
     await seedDatabase(prisma);
     const [country, club, discipline, resultStatus, period] = await Promise.all([
@@ -67,7 +62,6 @@ describe('Database v1 PostgreSQL constraints', () => {
   });
 
   afterAll(async () => {
-    await prisma.auditLog.deleteMany({ where: { id: ids.audit } });
     await prisma.externalIdentifier.deleteMany({
       where: { entityId: { in: [ids.athleteOne, ids.athleteTwo] } },
     });
@@ -472,6 +466,79 @@ describe('Database v1 PostgreSQL constraints', () => {
     });
   });
 
+  it('enforces administrator credential, session and audit correlation constraints', async () => {
+    const userId = randomUUID();
+    await prisma.user.create({
+      data: {
+        id: userId,
+        email: `security-${userId}@example.invalid`,
+        displayName: 'Security Constraint Fixture',
+        isDemo: true,
+      },
+    });
+    await prisma.userCredential.create({
+      data: {
+        userId,
+        passwordHash: 'test-only-password-hash',
+        totpSecretEncrypted: 'test-only-encrypted-secret',
+        twoFactorEnabledAt: new Date(),
+      },
+    });
+    const sessionBase = {
+      userId,
+      tokenHash: 'a'.repeat(64),
+      csrfTokenHash: 'b'.repeat(64),
+      expiresAt: new Date(Date.now() + 60_000),
+      idleExpiresAt: new Date(Date.now() + 30_000),
+    };
+    try {
+      await expect(
+        prisma.userCredential.update({
+          where: { userId },
+          data: { lastTotpStep: -1n },
+        }),
+      ).rejects.toMatchObject({ code: 'P2004' });
+      await expect(
+        prisma.adminSession.create({
+          data: { ...sessionBase, secondFactorMethod: 'UNSUPPORTED' },
+        }),
+      ).rejects.toMatchObject({ code: 'P2004' });
+      await expect(
+        prisma.adminSession.create({
+          data: {
+            ...sessionBase,
+            secondFactorMethod: 'RECOVERY',
+            pendingTotpSecretEncrypted: 'missing-expiry',
+          },
+        }),
+      ).rejects.toMatchObject({ code: 'P2004' });
+      await expect(
+        prisma.adminSession.create({
+          data: {
+            ...sessionBase,
+            secondFactorMethod: 'TOTP',
+            previousTokenHash: sessionBase.tokenHash,
+            previousTokenExpiresAt: new Date(Date.now() + 5_000),
+          },
+        }),
+      ).rejects.toMatchObject({ code: 'P2004' });
+      await expect(
+        prisma.auditLog.create({
+          data: {
+            action: 'INVALID_SESSION_REFERENCE',
+            entityType: 'User',
+            entityId: userId,
+            sessionId: randomUUID(),
+          },
+        }),
+      ).rejects.toMatchObject({ code: 'P2003' });
+    } finally {
+      await prisma.adminSession.deleteMany({ where: { userId } });
+      await prisma.userCredential.delete({ where: { userId } });
+      await prisma.user.delete({ where: { id: userId } });
+    }
+  });
+
   it('stores a redacted audit record', async () => {
     const audit = await prisma.auditLog.create({
       data: {
@@ -485,6 +552,15 @@ describe('Database v1 PostgreSQL constraints', () => {
       },
     });
     expect(audit.entityId).toBe(ids.athleteOne);
+    await expect(
+      prisma.auditLog.update({
+        where: { id: ids.audit },
+        data: { reason: 'Mutation must fail' },
+      }),
+    ).rejects.toThrow('AuditLog is append-only');
+    await expect(prisma.auditLog.delete({ where: { id: ids.audit } })).rejects.toThrow(
+      'AuditLog is append-only',
+    );
   });
 
   it('runs the demo seed twice without changing stable counts', async () => {
@@ -498,5 +574,111 @@ describe('Database v1 PostgreSQL constraints', () => {
       results: 36,
       rankingSnapshots: 1,
     });
+  });
+
+  it('retries concurrent serializable seed runs without partial failure', async () => {
+    const [first, second] = await Promise.all([seedDatabase(prisma), seedDatabase(prisma)]);
+    expect(second).toEqual(first);
+  });
+
+  it('rejects a non-demo natural-key collision without changing the row', async () => {
+    const original = await prisma.country.findUniqueOrThrow({ where: { isoAlpha2: 'MD' } });
+    const sentinelName = 'Protected non-demo Moldova';
+
+    await prisma.country.update({
+      where: { id: original.id },
+      data: { name: sentinelName, isDemo: false },
+    });
+
+    try {
+      await expect(seedDatabase(prisma)).rejects.toThrow(/Demo seed collision/);
+      await expect(
+        prisma.country.findUniqueOrThrow({ where: { id: original.id } }),
+      ).resolves.toMatchObject({
+        name: sentinelName,
+        isDemo: false,
+        archivedAt: original.archivedAt,
+      });
+    } finally {
+      await prisma.country.update({
+        where: { id: original.id },
+        data: {
+          isoAlpha3: original.isoAlpha3,
+          name: original.name,
+          isDemo: original.isDemo,
+          archivedAt: original.archivedAt,
+        },
+      });
+    }
+  });
+
+  it('rejects a non-demo deterministic-ID collision without changing the row', async () => {
+    const id = demoId('club:1');
+    const original = await prisma.club.findUniqueOrThrow({ where: { id } });
+    const sentinelName = 'Protected deterministic identifier';
+    await prisma.club.update({
+      where: { id },
+      data: { name: sentinelName, isDemo: false },
+    });
+
+    try {
+      await expect(seedDatabase(prisma)).rejects.toThrow(/deterministic identifiers/);
+      await expect(prisma.club.findUniqueOrThrow({ where: { id } })).resolves.toMatchObject({
+        name: sentinelName,
+        isDemo: false,
+      });
+    } finally {
+      await prisma.club.update({
+        where: { id },
+        data: { name: original.name, isDemo: original.isDemo },
+      });
+    }
+  });
+
+  it('rolls back earlier seed writes when a later model fails', async () => {
+    const original = await prisma.country.findUniqueOrThrow({ where: { isoAlpha2: 'MD' } });
+    const sentinelName = 'Seed rollback sentinel';
+
+    await prisma.country.update({ where: { id: original.id }, data: { name: sentinelName } });
+    await prisma.$executeRaw`
+      CREATE OR REPLACE FUNCTION fail_demo_event_seed_for_test()
+      RETURNS trigger AS $$
+      BEGIN
+        IF NEW.slug = 'demo-event-1' THEN
+          RAISE EXCEPTION 'forced demo seed failure';
+        END IF;
+        RETURN NEW;
+      END;
+      $$ LANGUAGE plpgsql
+    `;
+    await prisma.$executeRaw`
+      CREATE TRIGGER fail_demo_event_seed_for_test
+      BEFORE UPDATE ON "CompetitionEvent"
+      FOR EACH ROW EXECUTE FUNCTION fail_demo_event_seed_for_test()
+    `;
+
+    try {
+      await expect(seedDatabase(prisma)).rejects.toThrow();
+      await expect(
+        prisma.country.findUniqueOrThrow({ where: { id: original.id } }),
+      ).resolves.toMatchObject({
+        name: sentinelName,
+        isDemo: true,
+      });
+    } finally {
+      await prisma.$executeRaw`
+        DROP TRIGGER IF EXISTS fail_demo_event_seed_for_test ON "CompetitionEvent"
+      `;
+      await prisma.$executeRaw`DROP FUNCTION IF EXISTS fail_demo_event_seed_for_test()`;
+      await prisma.country.update({
+        where: { id: original.id },
+        data: {
+          isoAlpha3: original.isoAlpha3,
+          name: original.name,
+          isDemo: original.isDemo,
+          archivedAt: original.archivedAt,
+        },
+      });
+    }
   });
 });

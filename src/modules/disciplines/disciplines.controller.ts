@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
 import { ApiCreatedResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ApiStandardErrors } from '../../common/decorators/api-contract.decorator';
+import { AdminProtected } from '../../common/decorators/admin-protected.decorator';
 import { DisciplinesService } from './disciplines.service';
 import {
   CreateDisciplineDto,
@@ -10,7 +11,8 @@ import {
 
 @ApiTags('Disciplines')
 @ApiStandardErrors()
-@Controller('v1/disciplines')
+@AdminProtected()
+@Controller('v1/admin/disciplines')
 export class DisciplinesController {
   constructor(private readonly service: DisciplinesService) {}
   @Get() @ApiOperation({ summary: 'List disciplines with pagination' }) list(

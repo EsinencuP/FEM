@@ -6,6 +6,7 @@ import {
   archivedSchema,
   recordStatusSchema,
   requiredString,
+  requireAtLeastOneField,
   sortOrderSchema,
 } from '../../../common/dto/schemas';
 import { paginationSchema } from '../../../common/pagination/pagination.dto';
@@ -22,15 +23,18 @@ export class CreateDisciplineDto {
 
   @ApiProperty({ example: 'DEMO_JUMPING' }) code!: string;
   @ApiProperty({ example: 'Demo Jumping' }) name!: string;
-  @ApiPropertyOptional({ nullable: true }) description?: string | null;
+  @ApiPropertyOptional({ type: String, nullable: true }) description?: string | null;
   @ApiPropertyOptional({ enum: RecordStatus, default: RecordStatus.DRAFT }) status?: RecordStatus;
 }
 
 export class UpdateDisciplineDto {
-  static readonly schema = CreateDisciplineDto.schema.partial().strict();
+  static readonly schema = CreateDisciplineDto.schema
+    .partial()
+    .strict()
+    .superRefine(requireAtLeastOneField);
   @ApiPropertyOptional() code?: string;
   @ApiPropertyOptional() name?: string;
-  @ApiPropertyOptional({ nullable: true }) description?: string | null;
+  @ApiPropertyOptional({ type: String, nullable: true }) description?: string | null;
   @ApiPropertyOptional({ enum: RecordStatus }) status?: RecordStatus;
 }
 
@@ -44,8 +48,9 @@ export class DisciplineListQueryDto {
       sortOrder: sortOrderSchema,
     })
     .strict();
-  @ApiPropertyOptional({ default: 1 }) page = 1;
-  @ApiPropertyOptional({ default: 20, maximum: 100 }) limit = 20;
+  @ApiPropertyOptional({ type: 'integer', default: 1, minimum: 1 }) page = 1;
+  @ApiPropertyOptional({ type: 'integer', default: 20, minimum: 1, maximum: 100 })
+  limit = 20;
   @ApiPropertyOptional() search?: string;
   @ApiPropertyOptional({ enum: RecordStatus }) status?: RecordStatus;
   @ApiPropertyOptional({ enum: ['true', 'false', 'all'], default: 'false' }) archived:

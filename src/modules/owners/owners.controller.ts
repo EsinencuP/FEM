@@ -1,12 +1,14 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { ApiStandardErrors } from '../../common/decorators/api-contract.decorator';
+import { AdminProtected } from '../../common/decorators/admin-protected.decorator';
 import { CreateOwnerDto, OwnerListQueryDto, UpdateOwnerDto } from './dto/owner.dto';
 import { OwnersService } from './owners.service';
 const up = (): ParseUUIDPipe => new ParseUUIDPipe({ version: '4' as const });
 @ApiTags('Owners')
 @ApiStandardErrors()
-@Controller('v1/owners')
+@AdminProtected()
+@Controller('v1/admin/owners')
 export class OwnersController {
   constructor(private readonly s: OwnersService) {}
   @Get() list(@Query() q: OwnerListQueryDto): ReturnType<OwnersService['list']> {

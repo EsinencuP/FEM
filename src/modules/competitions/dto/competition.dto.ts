@@ -7,8 +7,10 @@ import {
   dateStringSchema,
   ensureDateOrder,
   publicationStatusSchema,
+  queryBooleanSchema,
   recordStatusSchema,
   requiredString,
+  requireAtLeastOneField,
   sortOrderSchema,
   uuidSchema,
 } from '../../../common/dto/schemas';
@@ -31,7 +33,6 @@ const fields = z
     countryId: uuidSchema.nullable().optional(),
     organizerName: z.string().trim().max(240).nullable().optional(),
     status: recordStatusSchema.optional(),
-    publicationStatus: publicationStatusSchema.optional(),
     coverMediaId: uuidSchema.nullable().optional(),
   })
   .strict();
@@ -40,32 +41,38 @@ export class CreateCompetitionDto {
   static readonly schema = fields.superRefine(ensureDateOrder);
   @ApiProperty() title!: string;
   @ApiProperty() slug!: string;
-  @ApiPropertyOptional({ nullable: true }) description?: string | null;
+  @ApiPropertyOptional({ type: String, nullable: true }) description?: string | null;
   @ApiProperty({ format: 'date' }) startDate!: Date;
   @ApiProperty({ format: 'date' }) endDate!: Date;
-  @ApiPropertyOptional({ nullable: true }) location?: string | null;
-  @ApiPropertyOptional({ nullable: true }) venue?: string | null;
-  @ApiPropertyOptional({ nullable: true }) countryId?: string | null;
-  @ApiPropertyOptional({ nullable: true }) organizerName?: string | null;
+  @ApiPropertyOptional({ type: String, nullable: true }) location?: string | null;
+  @ApiPropertyOptional({ type: String, nullable: true }) venue?: string | null;
+  @ApiPropertyOptional({ type: String, format: 'uuid', nullable: true }) countryId?: string | null;
+  @ApiPropertyOptional({ type: String, nullable: true }) organizerName?: string | null;
   @ApiPropertyOptional({ enum: RecordStatus }) status?: RecordStatus;
-  @ApiPropertyOptional({ enum: PublicationStatus }) publicationStatus?: PublicationStatus;
-  @ApiPropertyOptional({ nullable: true }) coverMediaId?: string | null;
+  @ApiPropertyOptional({ type: String, format: 'uuid', nullable: true })
+  coverMediaId?: string | null;
 }
 
 export class UpdateCompetitionDto {
-  static readonly schema = fields.partial().strict().superRefine(ensureDateOrder);
+  static readonly schema = fields
+    .partial()
+    .strict()
+    .superRefine((value, context) => {
+      requireAtLeastOneField(value, context);
+      ensureDateOrder(value, context);
+    });
   @ApiPropertyOptional() title?: string;
   @ApiPropertyOptional() slug?: string;
-  @ApiPropertyOptional({ nullable: true }) description?: string | null;
-  @ApiPropertyOptional() startDate?: Date;
-  @ApiPropertyOptional() endDate?: Date;
-  @ApiPropertyOptional({ nullable: true }) location?: string | null;
-  @ApiPropertyOptional({ nullable: true }) venue?: string | null;
-  @ApiPropertyOptional({ nullable: true }) countryId?: string | null;
-  @ApiPropertyOptional({ nullable: true }) organizerName?: string | null;
+  @ApiPropertyOptional({ type: String, nullable: true }) description?: string | null;
+  @ApiPropertyOptional({ type: String, format: 'date' }) startDate?: Date;
+  @ApiPropertyOptional({ type: String, format: 'date' }) endDate?: Date;
+  @ApiPropertyOptional({ type: String, nullable: true }) location?: string | null;
+  @ApiPropertyOptional({ type: String, nullable: true }) venue?: string | null;
+  @ApiPropertyOptional({ type: String, format: 'uuid', nullable: true }) countryId?: string | null;
+  @ApiPropertyOptional({ type: String, nullable: true }) organizerName?: string | null;
   @ApiPropertyOptional({ enum: RecordStatus }) status?: RecordStatus;
-  @ApiPropertyOptional({ enum: PublicationStatus }) publicationStatus?: PublicationStatus;
-  @ApiPropertyOptional({ nullable: true }) coverMediaId?: string | null;
+  @ApiPropertyOptional({ type: String, format: 'uuid', nullable: true })
+  coverMediaId?: string | null;
 }
 
 export class CompetitionListQueryDto {
@@ -78,7 +85,7 @@ export class CompetitionListQueryDto {
       publicationStatus: publicationStatusSchema.optional(),
       dateFrom: dateStringSchema.optional(),
       dateTo: dateStringSchema.optional(),
-      upcoming: z.coerce.boolean().optional(),
+      upcoming: queryBooleanSchema.optional(),
       archived: archivedSchema,
       sortBy: z.enum(['startDate', 'endDate', 'title', 'createdAt']).default('startDate'),
       sortOrder: sortOrderSchema,
@@ -87,17 +94,25 @@ export class CompetitionListQueryDto {
     .superRefine((value, context) => {
       ensureDateOrder({ startDate: value.dateFrom, endDate: value.dateTo }, context);
     });
-  @ApiPropertyOptional({ default: 1 }) page = 1;
-  @ApiPropertyOptional({ default: 20, maximum: 100 }) limit = 20;
+  @ApiPropertyOptional({ type: 'integer', default: 1, minimum: 1 }) page = 1;
+  @ApiPropertyOptional({ type: 'integer', default: 20, minimum: 1, maximum: 100 })
+  limit = 20;
   @ApiPropertyOptional() search?: string;
-  @ApiPropertyOptional() countryId?: string;
-  @ApiPropertyOptional() disciplineId?: string;
+  @ApiPropertyOptional({ type: String, format: 'uuid' }) countryId?: string;
+  @ApiPropertyOptional({ type: String, format: 'uuid' }) disciplineId?: string;
   @ApiPropertyOptional({ enum: RecordStatus }) status?: RecordStatus;
   @ApiPropertyOptional({ enum: PublicationStatus }) publicationStatus?: PublicationStatus;
-  @ApiPropertyOptional() dateFrom?: Date;
-  @ApiPropertyOptional() dateTo?: Date;
-  @ApiPropertyOptional() upcoming?: boolean;
-  @ApiPropertyOptional() archived: 'true' | 'false' | 'all' = 'false';
-  @ApiPropertyOptional() sortBy: 'startDate' | 'endDate' | 'title' | 'createdAt' = 'startDate';
-  @ApiPropertyOptional() sortOrder: 'asc' | 'desc' = 'asc';
+  @ApiPropertyOptional({ type: String, format: 'date' }) dateFrom?: Date;
+  @ApiPropertyOptional({ type: String, format: 'date' }) dateTo?: Date;
+  @ApiPropertyOptional({ type: Boolean }) upcoming?: boolean;
+  @ApiPropertyOptional({ type: String, enum: ['true', 'false', 'all'], default: 'false' })
+  archived: 'true' | 'false' | 'all' = 'false';
+  @ApiPropertyOptional({
+    type: String,
+    enum: ['startDate', 'endDate', 'title', 'createdAt'],
+    default: 'startDate',
+  })
+  sortBy: 'startDate' | 'endDate' | 'title' | 'createdAt' = 'startDate';
+  @ApiPropertyOptional({ type: String, enum: ['asc', 'desc'], default: 'asc' })
+  sortOrder: 'asc' | 'desc' = 'asc';
 }

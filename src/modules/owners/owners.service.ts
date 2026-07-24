@@ -1,5 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import type { Owner, Prisma } from '@prisma/client';
+import { assertActiveRecord } from '../../common/database/archive-policy';
+import { validateReferenceStates } from '../../common/database/reference-policy';
+import { withSerializableTransaction } from '../../common/database/serializable-transaction';
 import {
   dataResponse,
   listResponse,
@@ -50,19 +53,59 @@ export class OwnersService {
     );
   }
   async create(dto: CreateOwnerDto): Promise<DataResponse<Owner>> {
-    return dataResponse(await this.prisma.owner.create({ data: dto }));
+    return withSerializableTransaction(this.prisma, async (transaction) => {
+      const country = dto.countryId
+        ? await transaction.country.findUnique({
+            where: { id: dto.countryId },
+            select: { archivedAt: true, isDemo: true },
+          })
+        : null;
+      const isDemo = validateReferenceStates(
+        dto.countryId ? [{ resourceName: 'Country', state: country }] : [],
+      );
+      return dataResponse(await transaction.owner.create({ data: Object.assign({ isDemo }, dto) }));
+    });
   }
   async update(id: string, dto: UpdateOwnerDto): Promise<DataResponse<Owner>> {
-    return dataResponse(await this.prisma.owner.update({ where: { id }, data: dto }));
+    return withSerializableTransaction(this.prisma, async (transaction) => {
+      const current = await transaction.owner.findUniqueOrThrow({ where: { id } });
+      assertActiveRecord(current, 'owner');
+      const country = dto.countryId
+        ? await transaction.country.findUnique({
+            where: { id: dto.countryId },
+            select: { archivedAt: true, isDemo: true },
+          })
+        : null;
+      validateReferenceStates(
+        dto.countryId ? [{ resourceName: 'Country', state: country }] : [],
+        current.isDemo,
+      );
+      return dataResponse(await transaction.owner.update({ where: { id }, data: dto }));
+    });
   }
   async archive(id: string): Promise<DataResponse<Owner>> {
-    return dataResponse(
-      await this.prisma.owner.update({ where: { id }, data: { archivedAt: new Date() } }),
+    return withSerializableTransaction(this.prisma, async (transaction) =>
+      dataResponse(
+        await transaction.owner.update({ where: { id }, data: { archivedAt: new Date() } }),
+      ),
     );
   }
   async restore(id: string): Promise<DataResponse<Owner>> {
-    return dataResponse(
-      await this.prisma.owner.update({ where: { id }, data: { archivedAt: null } }),
-    );
+    return withSerializableTransaction(this.prisma, async (transaction) => {
+      const current = await transaction.owner.findUniqueOrThrow({ where: { id } });
+      const country = current.countryId
+        ? await transaction.country.findUnique({
+            where: { id: current.countryId },
+            select: { archivedAt: true, isDemo: true },
+          })
+        : null;
+      validateReferenceStates(
+        current.countryId ? [{ resourceName: 'Country', state: country }] : [],
+        current.isDemo,
+      );
+      return dataResponse(
+        await transaction.owner.update({ where: { id }, data: { archivedAt: null } }),
+      );
+    });
   }
 }

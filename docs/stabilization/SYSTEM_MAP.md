@@ -76,4 +76,3 @@ cycle. Graphify findings remain navigation hypotheses until confirmed in code.
 
 This map will be expanded with every controller, DTO field, transaction,
 projection and test after the independent reviews finish.
-

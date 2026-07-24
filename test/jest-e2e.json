@@ -5,5 +5,6 @@
   "transform": {
     "^.+\\.(t|j)s$": ["ts-jest", { "tsconfig": "<rootDir>/tsconfig.json" }]
   },
+  "setupFiles": ["<rootDir>/test/setup/assert-safe-test-database.ts"],
   "testEnvironment": "node"
 }

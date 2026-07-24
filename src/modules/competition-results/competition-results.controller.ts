@@ -14,6 +14,7 @@ import {
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { ApiStandardErrors } from '../../common/decorators/api-contract.decorator';
+import { AdminProtected } from '../../common/decorators/admin-protected.decorator';
 import { CompetitionResultsService } from './competition-results.service';
 import {
   CompetitionResultListQueryDto,
@@ -27,7 +28,8 @@ const uuidPipe = (): ParseUUIDPipe => new ParseUUIDPipe({ version: '4' as const 
 
 @ApiTags('Results')
 @ApiStandardErrors()
-@Controller('v1/results')
+@AdminProtected()
+@Controller('v1/admin/results')
 export class CompetitionResultsController {
   constructor(private readonly service: CompetitionResultsService) {}
   @Get() list(

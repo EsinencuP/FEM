@@ -1,6 +1,12 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import type { AthleteHorseRelation, Horse, HorseOwnership, Prisma } from '@prisma/client';
 
+import { assertActiveRecord } from '../../common/database/archive-policy';
+import {
+  assertSourceDocumentReference,
+  validateReferenceStates,
+} from '../../common/database/reference-policy';
+import { withSerializableTransaction } from '../../common/database/serializable-transaction';
 import {
   dataResponse,
   listResponse,
@@ -61,6 +67,8 @@ export class HorsesService {
           status: true,
           isDemo: true,
           archivedAt: true,
+          createdAt: true,
+          updatedAt: true,
           countryOfBirth: { select: { id: true, isoAlpha2: true, name: true } },
         },
         orderBy: [{ [query.sortBy]: query.sortOrder }, { id: 'asc' }],
@@ -95,23 +103,94 @@ export class HorsesService {
   }
 
   async create(dto: CreateHorseDto): Promise<DataResponse<Horse>> {
-    return dataResponse(await this.prisma.horse.create({ data: dto }));
+    return withSerializableTransaction(this.prisma, async (transaction) => {
+      const [country, image] = await Promise.all([
+        dto.countryOfBirthId
+          ? transaction.country.findUnique({
+              where: { id: dto.countryOfBirthId },
+              select: { archivedAt: true, isDemo: true },
+            })
+          : Promise.resolve(null),
+        dto.imageId
+          ? transaction.mediaFile.findUnique({
+              where: { id: dto.imageId },
+              select: { archivedAt: true, isDemo: true },
+            })
+          : Promise.resolve(null),
+      ]);
+      const isDemo = validateReferenceStates([
+        ...(dto.countryOfBirthId ? [{ resourceName: 'Country', state: country }] : []),
+        ...(dto.imageId ? [{ resourceName: 'Media file', state: image }] : []),
+      ]);
+      return dataResponse(await transaction.horse.create({ data: Object.assign({ isDemo }, dto) }));
+    });
   }
 
   async update(id: string, dto: UpdateHorseDto): Promise<DataResponse<Horse>> {
-    return dataResponse(await this.prisma.horse.update({ where: { id }, data: dto }));
+    return withSerializableTransaction(this.prisma, async (transaction) => {
+      const current = await transaction.horse.findUniqueOrThrow({ where: { id } });
+      assertActiveRecord(current, 'horse');
+      const [country, image] = await Promise.all([
+        dto.countryOfBirthId
+          ? transaction.country.findUnique({
+              where: { id: dto.countryOfBirthId },
+              select: { archivedAt: true, isDemo: true },
+            })
+          : Promise.resolve(null),
+        dto.imageId
+          ? transaction.mediaFile.findUnique({
+              where: { id: dto.imageId },
+              select: { archivedAt: true, isDemo: true },
+            })
+          : Promise.resolve(null),
+      ]);
+      validateReferenceStates(
+        [
+          ...(dto.countryOfBirthId ? [{ resourceName: 'Country', state: country }] : []),
+          ...(dto.imageId ? [{ resourceName: 'Media file', state: image }] : []),
+        ],
+        current.isDemo,
+      );
+      return dataResponse(await transaction.horse.update({ where: { id }, data: dto }));
+    });
   }
 
   async archive(id: string): Promise<DataResponse<Horse>> {
-    return dataResponse(
-      await this.prisma.horse.update({ where: { id }, data: { archivedAt: new Date() } }),
+    return withSerializableTransaction(this.prisma, async (transaction) =>
+      dataResponse(
+        await transaction.horse.update({ where: { id }, data: { archivedAt: new Date() } }),
+      ),
     );
   }
 
   async restore(id: string): Promise<DataResponse<Horse>> {
-    return dataResponse(
-      await this.prisma.horse.update({ where: { id }, data: { archivedAt: null } }),
-    );
+    return withSerializableTransaction(this.prisma, async (transaction) => {
+      const current = await transaction.horse.findUniqueOrThrow({ where: { id } });
+      const [country, image] = await Promise.all([
+        current.countryOfBirthId
+          ? transaction.country.findUnique({
+              where: { id: current.countryOfBirthId },
+              select: { archivedAt: true, isDemo: true },
+            })
+          : Promise.resolve(null),
+        current.imageId
+          ? transaction.mediaFile.findUnique({
+              where: { id: current.imageId },
+              select: { archivedAt: true, isDemo: true },
+            })
+          : Promise.resolve(null),
+      ]);
+      validateReferenceStates(
+        [
+          ...(current.countryOfBirthId ? [{ resourceName: 'Country', state: country }] : []),
+          ...(current.imageId ? [{ resourceName: 'Media file', state: image }] : []),
+        ],
+        current.isDemo,
+      );
+      return dataResponse(
+        await transaction.horse.update({ where: { id }, data: { archivedAt: null } }),
+      );
+    });
   }
 
   async owners(id: string, query: PaginationQuery): Promise<ListResponse<unknown>> {
@@ -130,16 +209,20 @@ export class HorsesService {
   }
 
   async addOwner(id: string, dto: CreateHorseOwnershipDto): Promise<DataResponse<HorseOwnership>> {
-    await this.assertHorse(id);
-    const data: Prisma.HorseOwnershipUncheckedCreateInput = {
-      horseId: id,
-      ownerId: dto.ownerId,
-      startDate: dto.startDate,
-      ...(dto.endDate !== undefined ? { endDate: dto.endDate } : {}),
-      ...(dto.ownershipShare !== undefined ? { ownershipShare: dto.ownershipShare } : {}),
-      ...(dto.sourceDocumentId !== undefined ? { sourceDocumentId: dto.sourceDocumentId } : {}),
-    };
-    return dataResponse(await this.prisma.horseOwnership.create({ data }));
+    return withSerializableTransaction(this.prisma, async (transaction) => {
+      const isDemo = await this.assertOwnershipParents(transaction, id, dto.ownerId);
+      await assertSourceDocumentReference(transaction, dto.sourceDocumentId, isDemo);
+      const data: Prisma.HorseOwnershipUncheckedCreateInput = {
+        horseId: id,
+        ownerId: dto.ownerId,
+        startDate: dto.startDate,
+        isDemo,
+        ...(dto.endDate !== undefined ? { endDate: dto.endDate } : {}),
+        ...(dto.ownershipShare !== undefined ? { ownershipShare: dto.ownershipShare } : {}),
+        ...(dto.sourceDocumentId !== undefined ? { sourceDocumentId: dto.sourceDocumentId } : {}),
+      };
+      return dataResponse(await transaction.horseOwnership.create({ data }));
+    });
   }
 
   async updateOwner(
@@ -147,19 +230,49 @@ export class HorsesService {
     ownershipId: string,
     dto: UpdateHorseOwnershipDto,
   ): Promise<DataResponse<HorseOwnership>> {
-    const current = await this.prisma.horseOwnership.findFirst({
-      where: { id: ownershipId, horseId: id },
+    return withSerializableTransaction(this.prisma, async (transaction) => {
+      const current = await transaction.horseOwnership.findFirst({
+        where: { id: ownershipId, horseId: id },
+      });
+      if (!current) {
+        throw new NotFoundException({ message: 'Horse ownership not found', code: 'NOT_FOUND' });
+      }
+      if (current.archivedAt) {
+        throw new BadRequestException({
+          message: 'Archived horse ownership cannot be updated',
+          code: 'ARCHIVED_RESOURCE',
+        });
+      }
+      this.assertDates(
+        dto.startDate ?? current.startDate,
+        dto.endDate === undefined ? current.endDate : dto.endDate,
+      );
+      const isDemo = await this.assertOwnershipParents(
+        transaction,
+        id,
+        dto.ownerId ?? current.ownerId,
+      );
+      await assertSourceDocumentReference(
+        transaction,
+        dto.sourceDocumentId === undefined ? current.sourceDocumentId : dto.sourceDocumentId,
+        isDemo,
+      );
+      return dataResponse(
+        await transaction.horseOwnership.update({
+          where: { id: ownershipId },
+          data: {
+            ...(dto.ownerId !== undefined ? { ownerId: dto.ownerId } : {}),
+            ...(dto.startDate !== undefined ? { startDate: dto.startDate } : {}),
+            ...(dto.endDate !== undefined ? { endDate: dto.endDate } : {}),
+            ...(dto.ownershipShare !== undefined ? { ownershipShare: dto.ownershipShare } : {}),
+            ...(dto.sourceDocumentId !== undefined
+              ? { sourceDocumentId: dto.sourceDocumentId }
+              : {}),
+            isDemo,
+          },
+        }),
+      );
     });
-    if (!current) {
-      throw new NotFoundException({ message: 'Horse ownership not found', code: 'NOT_FOUND' });
-    }
-    this.assertDates(
-      dto.startDate ?? current.startDate,
-      dto.endDate === undefined ? current.endDate : dto.endDate,
-    );
-    return dataResponse(
-      await this.prisma.horseOwnership.update({ where: { id: ownershipId }, data: dto }),
-    );
   }
 
   async athletes(id: string, query: PaginationQuery): Promise<ListResponse<unknown>> {
@@ -184,17 +297,26 @@ export class HorsesService {
     id: string,
     dto: CreateHorseAthleteRelationDto,
   ): Promise<DataResponse<AthleteHorseRelation>> {
-    await this.assertHorse(id);
-    const data: Prisma.AthleteHorseRelationUncheckedCreateInput = {
-      horseId: id,
-      athleteId: dto.athleteId,
-      startDate: dto.startDate,
-      ...(dto.relationType !== undefined ? { relationType: dto.relationType } : {}),
-      ...(dto.disciplineId !== undefined ? { disciplineId: dto.disciplineId } : {}),
-      ...(dto.endDate !== undefined ? { endDate: dto.endDate } : {}),
-      ...(dto.sourceDocumentId !== undefined ? { sourceDocumentId: dto.sourceDocumentId } : {}),
-    };
-    return dataResponse(await this.prisma.athleteHorseRelation.create({ data }));
+    return withSerializableTransaction(this.prisma, async (transaction) => {
+      const isDemo = await this.assertAthleteRelationParents(
+        transaction,
+        id,
+        dto.athleteId,
+        dto.disciplineId ?? null,
+      );
+      await assertSourceDocumentReference(transaction, dto.sourceDocumentId, isDemo);
+      const data: Prisma.AthleteHorseRelationUncheckedCreateInput = {
+        horseId: id,
+        athleteId: dto.athleteId,
+        startDate: dto.startDate,
+        isDemo,
+        ...(dto.relationType !== undefined ? { relationType: dto.relationType } : {}),
+        ...(dto.disciplineId !== undefined ? { disciplineId: dto.disciplineId } : {}),
+        ...(dto.endDate !== undefined ? { endDate: dto.endDate } : {}),
+        ...(dto.sourceDocumentId !== undefined ? { sourceDocumentId: dto.sourceDocumentId } : {}),
+      };
+      return dataResponse(await transaction.athleteHorseRelation.create({ data }));
+    });
   }
 
   async updateAthlete(
@@ -202,38 +324,66 @@ export class HorsesService {
     relationId: string,
     dto: UpdateHorseAthleteRelationDto,
   ): Promise<DataResponse<AthleteHorseRelation>> {
-    const current = await this.prisma.athleteHorseRelation.findFirst({
-      where: { id: relationId, horseId: id },
-    });
-    if (!current) {
-      throw new NotFoundException({
-        message: 'Athlete-horse relation not found',
-        code: 'NOT_FOUND',
+    return withSerializableTransaction(this.prisma, async (transaction) => {
+      const current = await transaction.athleteHorseRelation.findFirst({
+        where: { id: relationId, horseId: id },
       });
-    }
-    this.assertDates(
-      dto.startDate ?? current.startDate,
-      dto.endDate === undefined ? current.endDate : dto.endDate,
-    );
-    const data: Prisma.AthleteHorseRelationUncheckedUpdateInput = {
-      ...(dto.athleteId !== undefined ? { athleteId: dto.athleteId } : {}),
-      ...(dto.relationType !== undefined ? { relationType: dto.relationType } : {}),
-      ...(dto.disciplineId !== undefined ? { disciplineId: dto.disciplineId } : {}),
-      ...(dto.startDate !== undefined ? { startDate: dto.startDate } : {}),
-      ...(dto.endDate !== undefined ? { endDate: dto.endDate } : {}),
-      ...(dto.sourceDocumentId !== undefined ? { sourceDocumentId: dto.sourceDocumentId } : {}),
-    };
-    return dataResponse(
-      await this.prisma.athleteHorseRelation.update({
-        where: { id: relationId },
-        data,
-      }),
-    );
+      if (!current) {
+        throw new NotFoundException({
+          message: 'Athlete-horse relation not found',
+          code: 'NOT_FOUND',
+        });
+      }
+      if (current.archivedAt) {
+        throw new BadRequestException({
+          message: 'Archived athlete-horse relation cannot be updated',
+          code: 'ARCHIVED_RESOURCE',
+        });
+      }
+      this.assertDates(
+        dto.startDate ?? current.startDate,
+        dto.endDate === undefined ? current.endDate : dto.endDate,
+      );
+      const isDemo = await this.assertAthleteRelationParents(
+        transaction,
+        id,
+        dto.athleteId ?? current.athleteId,
+        dto.disciplineId === undefined ? current.disciplineId : dto.disciplineId,
+      );
+      await assertSourceDocumentReference(
+        transaction,
+        dto.sourceDocumentId === undefined ? current.sourceDocumentId : dto.sourceDocumentId,
+        isDemo,
+      );
+      const data: Prisma.AthleteHorseRelationUncheckedUpdateInput = {
+        ...(dto.athleteId !== undefined ? { athleteId: dto.athleteId } : {}),
+        ...(dto.relationType !== undefined ? { relationType: dto.relationType } : {}),
+        ...(dto.disciplineId !== undefined ? { disciplineId: dto.disciplineId } : {}),
+        ...(dto.startDate !== undefined ? { startDate: dto.startDate } : {}),
+        ...(dto.endDate !== undefined ? { endDate: dto.endDate } : {}),
+        ...(dto.sourceDocumentId !== undefined ? { sourceDocumentId: dto.sourceDocumentId } : {}),
+        isDemo,
+      };
+      return dataResponse(
+        await transaction.athleteHorseRelation.update({
+          where: { id: relationId },
+          data,
+        }),
+      );
+    });
   }
 
   async results(id: string, query: PaginationQuery): Promise<ListResponse<unknown>> {
     await this.assertHorse(id);
-    const where = { horseId: id };
+    const where: Prisma.CompetitionResultWhereInput = {
+      horseId: id,
+      archivedAt: null,
+      athlete: { archivedAt: null },
+      competitionClass: {
+        archivedAt: null,
+        competitionEvent: { archivedAt: null },
+      },
+    };
     const [data, total] = await this.prisma.$transaction([
       this.prisma.competitionResult.findMany({
         where,
@@ -268,5 +418,82 @@ export class HorsesService {
         code: 'VALIDATION_ERROR',
       });
     }
+  }
+
+  private async assertOwnershipParents(
+    transaction: Prisma.TransactionClient,
+    horseId: string,
+    ownerId: string,
+  ): Promise<boolean> {
+    const [horse, owner] = await Promise.all([
+      transaction.horse.findUnique({
+        where: { id: horseId },
+        select: { archivedAt: true, isDemo: true },
+      }),
+      transaction.owner.findUnique({
+        where: { id: ownerId },
+        select: { archivedAt: true, isDemo: true },
+      }),
+    ]);
+    if (!horse) throw new NotFoundException({ message: 'Horse not found', code: 'NOT_FOUND' });
+    if (!owner) throw new NotFoundException({ message: 'Owner not found', code: 'NOT_FOUND' });
+    if (horse.archivedAt || owner.archivedAt) {
+      throw new BadRequestException({
+        message: 'Archived horses or owners cannot receive a new or changed ownership',
+        code: 'ARCHIVED_RESOURCE',
+      });
+    }
+    if (horse.isDemo !== owner.isDemo) {
+      throw new BadRequestException({
+        message: 'Horse and owner must share the same demo boundary',
+        code: 'DEMO_BOUNDARY_CONFLICT',
+      });
+    }
+    return horse.isDemo;
+  }
+
+  private async assertAthleteRelationParents(
+    transaction: Prisma.TransactionClient,
+    horseId: string,
+    athleteId: string,
+    disciplineId: string | null,
+  ): Promise<boolean> {
+    const [horse, athlete, discipline] = await Promise.all([
+      transaction.horse.findUnique({
+        where: { id: horseId },
+        select: { archivedAt: true, isDemo: true },
+      }),
+      transaction.athlete.findUnique({
+        where: { id: athleteId },
+        select: { archivedAt: true, isDemo: true },
+      }),
+      disciplineId
+        ? transaction.discipline.findUnique({
+            where: { id: disciplineId },
+            select: { archivedAt: true, isDemo: true },
+          })
+        : Promise.resolve(null),
+    ]);
+    if (!horse) throw new NotFoundException({ message: 'Horse not found', code: 'NOT_FOUND' });
+    if (!athlete) throw new NotFoundException({ message: 'Athlete not found', code: 'NOT_FOUND' });
+    if (disciplineId && !discipline) {
+      throw new NotFoundException({ message: 'Discipline not found', code: 'NOT_FOUND' });
+    }
+    if (horse.archivedAt || athlete.archivedAt || discipline?.archivedAt) {
+      throw new BadRequestException({
+        message: 'Archived resources cannot receive a new or changed athlete-horse relation',
+        code: 'ARCHIVED_RESOURCE',
+      });
+    }
+    if (
+      horse.isDemo !== athlete.isDemo ||
+      (discipline !== null && horse.isDemo !== discipline.isDemo)
+    ) {
+      throw new BadRequestException({
+        message: 'Athlete-horse relation references must share the same demo boundary',
+        code: 'DEMO_BOUNDARY_CONFLICT',
+      });
+    }
+    return horse.isDemo;
   }
 }
