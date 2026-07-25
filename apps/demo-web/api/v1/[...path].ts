@@ -1,4 +1,4 @@
-import { proxyApiRequest } from '../../src/api/vercel-proxy';
+import { proxyApiRequest } from '../../src/api/vercel-proxy.js';
 
 export default {
   fetch(request: Request): Promise<Response> {
