@@ -225,3 +225,52 @@
   limits 1/100 and 1280/390 layouts.
 - Stages 4–6: PASS. Stage 7 local production preview: PASS. External HTTPS
   preview: CONDITIONAL because hosting/DNS/TLS/secret access is not available.
+
+## 2026-07-25 — FEM login visual redesign
+
+- Rebuilt `/login` as a responsive FEM-branded landing/auth composition while
+  preserving the existing email, password, TOTP, session and redirect flow.
+- Added a locally bundled variable Nunito font, accessible labels, a skip link,
+  password visibility control, busy/error states and reduced-motion support.
+- Kept unsupported registration and social-login actions out of the interface.
+- Added focused component tests for the auth payload, password visibility and
+  safe error rendering; demo-web gate now passes 4 files / 17 tests.
+- Corrected the desktop grid minimum that could push the auth card beyond the
+  viewport. DOM QA confirms no horizontal document overflow at the default
+  desktop viewport.
+
+## 2026-07-25 — Demo-web rendering and loading optimization
+
+- Split AppShell, registry lists and detail pages into route-level lazy chunks;
+  the login route no longer evaluates every protected page on first load.
+- Reduced initial JavaScript from 300.25 kB to 250.84 kB before gzip, with
+  protected route chunks loaded only when required.
+- Replaced continuous decorative animation, large blur filters and
+  backdrop-filter layers with visually equivalent static gradients and
+  shadows.
+- Limited bundled Nunito assets to the Cyrillic, Latin and Latin Extended
+  subsets required by the RU/RO interface.
+- Re-ran lint, strict typecheck, 17 component tests and production build; all
+  checks pass. Live browser verification reports no overflow or console errors.
+
+## 2026-07-25 — Admin visual system redesign
+
+- Preserved the existing sidebar/workspace structure, routes, tables, filters,
+  forms, drawers and API behavior.
+- Replaced the previous Georgia/Inter and square navy UI with a shared
+  Nunito-based sky/coral system matching the optimized login experience.
+- Restyled navigation, topbar, demo notice, page headings, controls, data
+  tables, status badges, detail cards, competition workspace and form drawers.
+- Corrected the intermediate sidebar breakpoint so the wordmark is hidden
+  cleanly while the navigation remains readable in a 12.5rem rail.
+- Replaced the compact navigation codes `01 / 02 / 03` with the readable
+  section names `Спортсмены / Лошади / Соревнования` and added a regression
+  test for the navigation contract.
+- Simplified the sidebar logo to an unframed white `FEM` wordmark with no
+  gradient tile, border or shadow.
+- Reworked the login identity around the title `База данных конного спорта
+Молдовы`, added a consistent horse-head silhouette and removed visible
+  prototype/demo labels from login, application chrome, forms and metadata.
+- Kept all ambient effects static: the only remaining CSS animation is the
+  bounded loading spinner.
+- Verified frontend lint, strict typecheck, 17 tests and production build.

@@ -27,6 +27,8 @@
     "openapi:types": "tsx scripts/generate-openapi-types.ts",
     "openapi:types:check": "tsx scripts/generate-openapi-types.ts --check",
     "admin:bootstrap": "tsx scripts/bootstrap-admin.ts",
+    "demo:database-confirmation": "tsx scripts/demo-database-confirmation.ts",
+    "demo:provision-runtime-role": "tsx scripts/provision-runtime-role.ts",
     "prisma:generate": "prisma generate --schema prisma/schema.prisma",
     "prisma:validate": "prisma validate --schema prisma/schema.prisma",
     "prisma:format": "prisma format --schema prisma/schema.prisma",
@@ -43,7 +45,8 @@
     "web:lint": "pnpm --dir apps/demo-web lint",
     "web:typecheck": "pnpm --dir apps/demo-web typecheck",
     "web:test": "pnpm --dir apps/demo-web test",
-    "web:build": "pnpm --dir apps/demo-web build"
+    "web:build": "pnpm --dir apps/demo-web build",
+    "vercel:build": "pnpm prisma:generate && pnpm build"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

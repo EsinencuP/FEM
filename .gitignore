@@ -14,6 +14,7 @@ apps/demo-web/coverage/
 # Logs and local tooling
 *.log
 graphify-out/
+.vercel/
 .idea/
 .vscode/
 .DS_Store

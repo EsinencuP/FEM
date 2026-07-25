@@ -392,18 +392,10 @@ export function CompetitionDetailPage(): ReactNode {
           )}
         </div>
       </section>
-      <aside className="future-note">
-        <strong>Следующие версии</strong>
-        <p>
-          Импорт Excel, владельцы, рейтинг и публичный сайт появятся только после подтверждения
-          demo-MVP.
-        </p>
-      </aside>
-
       <Drawer
         open={competitionEditor}
         title="Редактировать соревнование"
-        description="Для демонстрации безопасно изменить поле «Площадка»."
+        description="Измените основные параметры соревнования."
         onClose={() => setCompetitionEditor(false)}
       >
         <FormFeedback error={formError} />
@@ -541,12 +533,12 @@ export function CompetitionDetailPage(): ReactNode {
               <select
                 id="class-category"
                 name="category"
-                defaultValue={classEditor.item?.category ?? 'Открытый класс (демо)'}
+                defaultValue={classEditor.item?.category ?? 'Открытый класс'}
               >
-                <option>Открытый класс (демо)</option>
-                <option>Юниоры (демо)</option>
-                <option>Любители (демо)</option>
-                <option>Молодые лошади (демо)</option>
+                <option>Открытый класс</option>
+                <option>Юниоры</option>
+                <option>Любители</option>
+                <option>Молодые лошади</option>
               </select>
             </FormField>
             <FormField label="Уровень" htmlFor="class-level">

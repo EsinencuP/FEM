@@ -1,10 +1,8 @@
 import type { ApiErrorBody } from './contracts';
 
 const configuredBaseUrl = import.meta.env.VITE_API_BASE_URL as string | undefined;
-export const API_BASE_URL = (configuredBaseUrl ?? 'http://127.0.0.1:3000/api/v1').replace(
-  /\/$/,
-  '',
-);
+const defaultBaseUrl = import.meta.env.PROD ? '/api/v1' : 'http://127.0.0.1:3000/api/v1';
+export const API_BASE_URL = (configuredBaseUrl ?? defaultBaseUrl).replace(/\/$/, '');
 
 const CSRF_KEY = 'fem.demo.csrf';
 
@@ -27,6 +25,7 @@ export class ApiError extends Error {
 function userMessage(status: number, code?: string): string {
   if (code === 'STALE_VERSION') return 'Запись уже изменена. Обновите данные и повторите действие.';
   if (code === 'VALIDATION_ERROR') return 'Проверьте заполнение обязательных полей.';
+  if (code === 'AUTHENTICATION_FAILED') return 'Проверьте email, пароль и код 2FA.';
   if (code === 'RECOVERY_SESSION_RESTRICTED') {
     return 'Сессия восстановления ограничена. Завершите настройку второго фактора.';
   }

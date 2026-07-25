@@ -1,6 +1,6 @@
 # Следующее действие
 
-Updated: 2026-07-24
+Updated: 2026-07-25
 
 Источник scope: `FEM_MVP_ACCELERATED_PLAN.md` версии 3.0.
 
@@ -11,21 +11,29 @@ production preview Этапа 7 также проходит утверждённ
 
 ## Единственный незавершённый пункт Этапа 7
 
-Разместить frontend и backend в контролируемой внешней demo-среде после
-предоставления:
+Завершить реальное размещение уже подготовленных Vercel-проектов:
 
-- hosting/project access;
-- отдельной demo PostgreSQL и restricted runtime credential;
-- DNS/TLS или готового HTTPS origin;
-- deployment secret storage;
-- согласованной demo-учётной записи, передаваемой вне frontend/repository.
+1. авторизовать Vercel CLI или импортировать репозиторий через Dashboard;
+2. создать `fem-demo-api` из корня репозитория;
+3. создать отдельную Neon demo-базу через Vercel Marketplace;
+4. применить 17 migrations, guarded seed дважды и one-time admin bootstrap;
+5. создать restricted runtime role и назначить его pooled URL API-проекту;
+6. создать `fem-demo-web` из `apps/demo-web`;
+7. связать frontend с API через `FEM_BACKEND_ORIGIN`;
+8. выполнить clean-browser acceptance smoke.
+
+Полная инструкция:
+[`docs/deployment/VERCEL_DEMO_DEPLOYMENT.md`](../deployment/VERCEL_DEMO_DEPLOYMENT.md).
+Статические demo credentials подготовлены в ignored `.env.vercel.local`;
+database URL пока отсутствует, поэтому bootstrap удалённой учётной записи ещё
+не выполнялся.
 
 Перед внешним показом:
 
 1. задать точный HTTPS `CORS_ALLOWED_ORIGINS`;
-2. включить secure cookie/HSTS с корректным proxy trust;
-3. выключить Swagger либо защитить его отдельными credentials;
-4. применить 17 migrations и guarded demo seed к отдельной demo-БД;
+2. оставить secure cookie/HSTS и same-origin frontend proxy;
+3. оставить Swagger выключенным;
+4. не передавать owner URL или bootstrap/seed secrets runtime-функции;
 5. выполнить smoke в чистой browser session;
 6. повторить локальный fallback gate.
 

@@ -5,13 +5,13 @@ import { useAuth } from '../auth/AuthProvider';
 import { Button } from './Button';
 
 const navigation = [
-  { to: '/athletes', label: 'Спортсмены', code: '01' },
-  { to: '/horses', label: 'Лошади', code: '02' },
-  { to: '/competitions', label: 'Соревнования', code: '03' },
+  { to: '/athletes', label: 'Спортсмены' },
+  { to: '/horses', label: 'Лошади' },
+  { to: '/competitions', label: 'Соревнования' },
 ] as const;
 
 export function AppShell(): ReactNode {
-  const { user, logout } = useAuth();
+  const { logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -35,32 +35,21 @@ export function AppShell(): ReactNode {
         <nav className="primary-nav" aria-label="Основная навигация">
           {navigation.map((item) => (
             <NavLink key={item.to} to={item.to}>
-              <span>{item.code}</span>
               {item.label}
             </NavLink>
           ))}
         </nav>
-        <div className="sidebar__note">
-          <span className="signal-dot" aria-hidden="true" />
-          <div>
-            <strong>Демо-прототип</strong>
-            <p>Только вымышленные данные</p>
-          </div>
-        </div>
       </aside>
       <div className="workspace">
         <header className="topbar">
           <div>
-            <p className="topbar__context">Внутренний инструмент учёта</p>
-            <strong>{user?.displayName}</strong>
+            <p className="topbar__context">Платформа управления данными</p>
+            <strong>Администратор FEM</strong>
           </div>
           <Button variant="quiet" onClick={() => void handleLogout()}>
             Выйти
           </Button>
         </header>
-        <div className="demo-banner" role="note">
-          <strong>Демо-прототип.</strong> Данные вымышлены; справочники категорий предварительные.
-        </div>
         <main className="main-content">
           <Outlet />
         </main>

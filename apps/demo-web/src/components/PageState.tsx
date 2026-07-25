@@ -30,7 +30,7 @@ export function EmptyState({
       <p>
         {filtered
           ? 'Сбросьте часть фильтров или попробуйте другой запрос.'
-          : 'Создайте первую демонстрационную запись.'}
+          : 'Создайте первую запись.'}
       </p>
       {filtered && onReset ? <Button onClick={onReset}>Сбросить фильтры</Button> : null}
     </div>

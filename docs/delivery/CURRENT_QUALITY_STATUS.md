@@ -1,6 +1,6 @@
 # Текущий статус качества FEM
 
-Дата проверки: 2026-07-24
+Дата проверки: 2026-07-25
 
 Окружение: Windows 11, Node.js 22.23.1, pnpm 11.9.0,
 PostgreSQL 16 Docker, Prisma 6.19.3
@@ -29,7 +29,7 @@ Admin API. Он покрывает только спортсменов, лоша
 | Prisma format/validate/generate | PASS                                                   |
 | ESLint                          | PASS                                                   |
 | TypeScript strict typecheck     | PASS                                                   |
-| Unit tests                      | PASS, 10 suites / 70 tests                             |
+| Unit tests                      | PASS, 10 suites / 73 tests                             |
 | PostgreSQL DB tests             | PASS, 2 suites / 28 tests                              |
 | HTTP/OpenAPI/concurrency E2E    | PASS, 12 suites / 85 tests                             |
 | Production build                | PASS                                                   |
@@ -37,8 +37,8 @@ Admin API. Он покрывает только спортсменов, лоша
 | Generated frontend API types    | PASS, snapshot current                                 |
 | Restricted runtime-role smoke   | PASS, health/public/admin/docs boundaries verified     |
 | Demo-web ESLint / strict TS     | PASS                                                   |
-| Demo-web unit/component tests   | PASS, 2 files / 11 tests                               |
-| Demo-web production build       | PASS, 294 kB JS / 18.5 kB CSS до gzip                  |
+| Demo-web unit/component tests   | PASS, 5 files / 18 tests                               |
+| Demo-web production build       | PASS, 250.70 kB initial JS / 32.90 kB CSS до gzip      |
 | Browser integration QA          | PASS, desktop 1280 и mobile-accessible 390             |
 
 Стабильные seed-счётчики после каждого запуска:
@@ -69,6 +69,12 @@ classes=12, results=60, rankingSnapshots=1
 ## Реализованный demo-web
 
 - `/login` и защищённый shell без dashboard;
+- обновлённая адаптивная login-страница в визуальном языке FEM с реальными
+  полями email/password/TOTP и без фиктивной регистрации/social auth;
+- route-level code splitting: страницы реестра и AppShell загружаются после
+  входа, а не входят в initial login bundle;
+- admin shell, lists, filters, tables, detail cards and drawers use the same
+  performant sky/coral/Nunito visual system as `/login`;
 - `/athletes`, `/athletes/:id`, `/horses`, `/horses/:id`;
 - `/competitions`, `/competitions/:id` с классами и результатами внутри
   рабочего пространства;
@@ -92,9 +98,9 @@ classes=12, results=60, rankingSnapshots=1
 ## Оставшиеся demo-gaps
 
 - RU, поля и четыре категории остаются provisional до подтверждения FEM;
-- внешний HTTPS preview не создан: в репозитории нет hosting project/config,
-  а доступ к контролируемой demo-среде и её DNS/TLS/secret storage не
-  предоставлен;
+- Vercel-конфигурация, same-origin API proxy, remote-seed safety и deployment
+  runbook созданы, но внешний HTTPS preview ещё не развёрнут: Vercel account
+  login и отдельная Neon demo-база пока не предоставлены;
 - Public API, owners UI, dashboard, CMS, Excel и рейтинг остаются вне scope
   demo-web.
 
@@ -102,7 +108,8 @@ classes=12, results=60, rankingSnapshots=1
 
 Статус backend DB/API baseline: **PASS**.
 
-После Этапов 4–7 Graphify обновлён до 2413 узлов, 5088 связей и 160 сообществ.
+После Vercel preparation Graphify обновлён до 2466 узлов, 5153 связей и 179
+сообществ.
 Generated TypeScript contract исключён из архитектурного сканирования как
 производный артефакт; исходный OpenAPI и generator остаются в карте.
 
@@ -117,7 +124,7 @@ Generated TypeScript contract исключён из архитектурного
 | 4 — frontend foundation | PASS        | protected shell, API/auth client, primitives and all UI states                        |
 | 5 — minimal screens     | PASS        | seven routes and full real API/demo DB scenario                                       |
 | 6 — integration/QA      | PASS        | browser QA, safe mutation, 1/100 pagination, 28 DB, 85 E2E, no P0                     |
-| 7 — preview             | CONDITIONAL | reproducible local production preview PASS; external HTTPS preview blocked by access  |
+| 7 — preview             | CONDITIONAL | Vercel preparation PASS; account login, Neon and deployed smoke remain                |
 
 Статус интегрированного локального demo: **GO**.
 

@@ -1,6 +1,7 @@
 import {
   assertSafeDemoSeedEnvironment,
   assertSafeTestDatabaseEnvironment,
+  remoteDemoDatabaseConfirmation,
 } from './database-safety';
 
 describe('database target safety', () => {
@@ -67,6 +68,37 @@ describe('database target safety', () => {
   ])('rejects unsafe demo seed environment %#', (environment) => {
     expect(() => {
       assertSafeDemoSeedEnvironment(environment);
+    }).toThrow();
+  });
+
+  it('allows a remote demo seed only with TLS and an exact database-bound confirmation', () => {
+    const databaseUrl =
+      'postgresql://demo:secret@demo-pooler.example.test:5432/fem_showcase?sslmode=require';
+    const confirmation = remoteDemoDatabaseConfirmation(databaseUrl);
+
+    expect(() => {
+      assertSafeDemoSeedEnvironment({
+        NODE_ENV: 'development',
+        ALLOW_DEMO_SEED: 'true',
+        ALLOW_REMOTE_DEMO_SEED: 'true',
+        REMOTE_DEMO_DATABASE_CONFIRMATION: confirmation,
+        DATABASE_URL: databaseUrl,
+      });
+    }).not.toThrow();
+  });
+
+  it.each([
+    'postgresql://demo:secret@demo.example.test:5432/fem_showcase',
+    'postgresql://demo:secret@demo.example.test:5432/fem_production?sslmode=require',
+  ])('rejects an unsafe remote demo seed target: %s', (databaseUrl) => {
+    expect(() => {
+      assertSafeDemoSeedEnvironment({
+        NODE_ENV: 'development',
+        ALLOW_DEMO_SEED: 'true',
+        ALLOW_REMOTE_DEMO_SEED: 'true',
+        REMOTE_DEMO_DATABASE_CONFIRMATION: remoteDemoDatabaseConfirmation(databaseUrl),
+        DATABASE_URL: databaseUrl,
+      });
     }).toThrow();
   });
 });

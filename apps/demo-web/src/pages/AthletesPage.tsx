@@ -197,7 +197,7 @@ export function AthletesPage(): ReactNode {
       <Drawer
         open={drawerOpen}
         title="Новый спортсмен"
-        description="Только минимальные поля demo-MVP."
+        description="Заполните основные данные спортсмена."
         onClose={() => setDrawerOpen(false)}
       >
         <FormFeedback error={formError} />

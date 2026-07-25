@@ -1391,6 +1391,14 @@ describe('Database v1 PostgreSQL constraints', () => {
       await prisma.$executeRawUnsafe(`REVOKE "${capability.name}" FROM "${roleName}"`);
       await prisma.$executeRawUnsafe(`DROP ROLE IF EXISTS "${roleName}"`);
       for (const databaseName of revokedPublicConnectDatabases) {
+        const [database] = await prisma.$queryRaw<{ exists: boolean }[]>`
+          SELECT EXISTS (
+            SELECT 1
+            FROM pg_database
+            WHERE datname = ${databaseName}
+          ) AS "exists"
+        `;
+        if (!database?.exists) continue;
         const safeDatabaseName = databaseName.replaceAll('"', '""');
         await prisma.$executeRawUnsafe(`GRANT CONNECT ON DATABASE "${safeDatabaseName}" TO PUBLIC`);
       }

@@ -1,6 +1,10 @@
+import { createHash } from 'node:crypto';
+
 interface DatabaseTarget {
   host: string;
+  port: string;
   database: string;
+  sslMode: string | null;
 }
 
 type EnvironmentLike = Readonly<Record<string, string | undefined>>;
@@ -35,7 +39,12 @@ function parseDatabaseTarget(databaseUrl: string | undefined): DatabaseTarget {
     throw new Error('DATABASE_URL must identify exactly one database');
   }
 
-  return { host: parsed.hostname.toLowerCase(), database };
+  return {
+    host: parsed.hostname.toLowerCase(),
+    port: parsed.port || '5432',
+    database,
+    sslMode: parsed.searchParams.get('sslmode'),
+  };
 }
 
 function assertLocalTarget(target: DatabaseTarget): void {
@@ -46,6 +55,13 @@ function assertLocalTarget(target: DatabaseTarget): void {
 
 function isTestDatabase(database: string): boolean {
   return TEST_DATABASE_NAMES.has(database) || AUDIT_DATABASE_PATTERN.test(database);
+}
+
+export function remoteDemoDatabaseConfirmation(databaseUrl: string | undefined): string {
+  const target = parseDatabaseTarget(databaseUrl);
+  return createHash('sha256')
+    .update(`FEM_REMOTE_DEMO:${target.host}:${target.port}/${target.database}`)
+    .digest('hex');
 }
 
 export function assertSafeTestDatabaseEnvironment(environment: EnvironmentLike): void {
@@ -73,7 +89,22 @@ export function assertSafeDemoSeedEnvironment(environment: EnvironmentLike): voi
   }
 
   const target = parseDatabaseTarget(environment.DATABASE_URL);
-  assertLocalTarget(target);
+  if (!LOCAL_DATABASE_HOSTS.has(target.host)) {
+    if (environment.ALLOW_REMOTE_DEMO_SEED !== 'true') {
+      throw new Error('Remote demo seed requires explicit ALLOW_REMOTE_DEMO_SEED=true opt-in');
+    }
+    if (target.sslMode !== 'require' && target.sslMode !== 'verify-full') {
+      throw new Error('Remote demo seed requires sslmode=require or sslmode=verify-full');
+    }
+    if (/(?:^|[_-])(prod|production|live)(?:$|[_-])/i.test(target.database)) {
+      throw new Error('Remote demo seed refuses a production-like database name');
+    }
+    const expectedConfirmation = remoteDemoDatabaseConfirmation(environment.DATABASE_URL);
+    if (environment.REMOTE_DEMO_DATABASE_CONFIRMATION !== expectedConfirmation) {
+      throw new Error('Remote demo seed requires the exact database-bound confirmation token');
+    }
+    return;
+  }
 
   if (!DEMO_DATABASE_NAMES.has(target.database) && !AUDIT_DATABASE_PATTERN.test(target.database)) {
     throw new Error('Demo seed target is not an approved local database');

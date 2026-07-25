@@ -1,23 +1,23 @@
 :root {
-  --fem-primitive-navy-950: #081520;
-  --fem-primitive-navy-900: #102331;
-  --fem-primitive-navy-800: #193548;
-  --fem-primitive-blue-600: #1663df;
-  --fem-primitive-blue-100: #dceaff;
-  --fem-primitive-cyan-400: #4cc9c0;
-  --fem-primitive-sand-50: #f7f5ef;
+  --fem-primitive-navy-950: #0c4a6e;
+  --fem-primitive-navy-900: #075985;
+  --fem-primitive-navy-800: #0369a1;
+  --fem-primitive-blue-600: #0284c7;
+  --fem-primitive-blue-100: #e0f2fe;
+  --fem-primitive-cyan-400: #38bdf8;
+  --fem-primitive-sand-50: #f7fbff;
   --fem-primitive-white: #ffffff;
-  --fem-primitive-gray-50: #f8fafb;
-  --fem-primitive-gray-100: #eef2f4;
-  --fem-primitive-gray-200: #dce3e7;
-  --fem-primitive-gray-500: #687882;
-  --fem-primitive-gray-700: #33454f;
-  --fem-primitive-red-50: #fff1f0;
-  --fem-primitive-red-700: #a72c24;
+  --fem-primitive-gray-50: #f7fbff;
+  --fem-primitive-gray-100: #f0f9ff;
+  --fem-primitive-gray-200: #d9edf8;
+  --fem-primitive-gray-500: #5b7184;
+  --fem-primitive-gray-700: #33485c;
+  --fem-primitive-red-50: #fff1f4;
+  --fem-primitive-red-700: #be123c;
   --fem-primitive-green-50: #eaf8f1;
-  --fem-primitive-green-700: #216a49;
-  --fem-primitive-amber-50: #fff7df;
-  --fem-primitive-amber-800: #735514;
+  --fem-primitive-green-700: #147b5a;
+  --fem-primitive-amber-50: #fff8e8;
+  --fem-primitive-amber-800: #7c5415;
 
   --fem-semantic-color-bg-canvas: var(--fem-primitive-gray-50);
   --fem-semantic-color-bg-surface: var(--fem-primitive-white);
@@ -35,17 +35,18 @@
   --fem-semantic-color-warning-bg: var(--fem-primitive-amber-50);
   --fem-semantic-color-warning-text: var(--fem-primitive-amber-800);
 
-  --fem-semantic-font-body: Inter, 'Segoe UI', Arial, sans-serif;
-  --fem-semantic-font-display: Georgia, 'Times New Roman', serif;
+  --fem-semantic-font-body: 'Nunito Variable', Nunito, 'Segoe UI', sans-serif;
+  --fem-semantic-font-display: 'Nunito Variable', Nunito, 'Segoe UI', sans-serif;
   --fem-semantic-space-xs: 0.25rem;
   --fem-semantic-space-sm: 0.5rem;
   --fem-semantic-space-md: 1rem;
   --fem-semantic-space-lg: 1.5rem;
   --fem-semantic-space-xl: 2rem;
   --fem-semantic-space-2xl: 3rem;
-  --fem-semantic-radius-control: 0.35rem;
-  --fem-semantic-radius-card: 0.5rem;
-  --fem-semantic-shadow-overlay: 0 24px 70px rgb(8 21 32 / 22%);
+  --fem-semantic-radius-control: 1rem;
+  --fem-semantic-radius-card: 1.75rem;
+  --fem-semantic-shadow-overlay:
+    0 34px 80px -28px rgb(15 32 48 / 28%), 0 18px 42px -30px rgb(56 189 248 / 52%);
   --fem-semantic-layout-sidebar: 16.5rem;
   --fem-semantic-layout-content-max: 100rem;
   --fem-semantic-layout-touch-target: 2.75rem;

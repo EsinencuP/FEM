@@ -4,7 +4,8 @@
 спорта Молдовы. Репозиторий содержит NestJS REST API, PostgreSQL/Prisma-модель,
 защищённую административную поверхность, внутренний demo-web и versioned
 ranking snapshots без официальной формулы. Регистрация на турниры, публичный
-frontend и production deployment намеренно отсутствуют.
+frontend и полный production-релиз намеренно отсутствуют. Защищённый внешний
+customer-demo подготовлен к размещению на Vercel с отдельной managed PostgreSQL.
 
 > Административные маршруты `/api/v1/admin/*` защищены server-side session,
 > TOTP/recovery 2FA, permission checks, CSRF и shared rate limiting. Активный
@@ -20,6 +21,7 @@ frontend и production deployment намеренно отсутствуют.
 - `docs/README.md`;
 - `docs/progress/NEXT_ACTION.md`;
 - `docs/delivery/CURRENT_QUALITY_STATUS.md`.
+- `docs/deployment/VERCEL_DEMO_DEPLOYMENT.md` — внешний customer-demo.
 
 ## Требования
 
@@ -119,6 +121,24 @@ Demo-web доступен по адресу `http://127.0.0.1:5173`, API —
 `http://127.0.0.1:3000/api/docs-json`. Swagger не является частью сценария
 показа заказчику.
 
+## Внешний customer-demo на Vercel
+
+Репозиторий подготовлен как два Vercel Project из одного monorepo:
+
+- NestJS API из корня репозитория;
+- Vite demo-web из `apps/demo-web`.
+
+Frontend обращается к API через same-origin `/api/v1` proxy, поэтому защищённая
+cookie сохраняет `HttpOnly`, `Secure` и `SameSite=Strict`. Для базы используется
+отдельный Neon PostgreSQL из Vercel Marketplace; локальный Docker Compose в
+Vercel не запускается.
+
+Полная последовательность создания базы, миграций, двойного seed, постоянной
+demo-учётной записи, restricted runtime role, Vercel variables и smoke-test:
+[`docs/deployment/VERCEL_DEMO_DEPLOYMENT.md`](docs/deployment/VERCEL_DEMO_DEPLOYMENT.md).
+Секреты demo-размещения находятся только в локальном ignored
+`.env.vercel.local` и должны быть перенесены в Vercel Secret Manager.
+
 ## Первый администратор
 
 Bootstrap выполняется один раз и не перезаписывает существующие credentials.
@@ -179,41 +199,44 @@ pnpm prisma:migrate:deploy
 
 ## Команды
 
-| Команда                      | Назначение                                             |
-| ---------------------------- | ------------------------------------------------------ |
-| `pnpm start:dev`             | Запуск NestJS в watch-режиме                           |
-| `pnpm build`                 | Production-сборка в `dist/`                            |
-| `pnpm start:prod`            | Запуск собранного приложения                           |
-| `pnpm lint`                  | Строгая ESLint-проверка                                |
-| `pnpm lint:fix`              | Безопасные автоматические ESLint-исправления           |
-| `pnpm format`                | Форматирование исходников и документации               |
-| `pnpm typecheck`             | TypeScript-проверка без генерации файлов               |
-| `pnpm test`                  | Unit-тесты                                             |
-| `pnpm test:e2e`              | E2E-тест с реальным локальным PostgreSQL               |
-| `pnpm test:db`               | PostgreSQL constraint tests на выделенной test-базе    |
-| `pnpm test:performance`      | Локальный opt-in smoke на 10 000 результатов           |
-| `pnpm test:runtime-role`     | Build + production smoke под restricted DB login       |
-| `pnpm openapi:export`        | Обновление versioned OpenAPI snapshot для frontend     |
-| `pnpm openapi:check`         | Проверка актуальности OpenAPI snapshot/checksum        |
-| `pnpm openapi:types`         | Генерация TypeScript API contract из OpenAPI           |
-| `pnpm openapi:types:check`   | Проверка актуальности generated TypeScript contract    |
-| `pnpm prisma:generate`       | Генерация Prisma Client                                |
-| `pnpm prisma:validate`       | Проверка Prisma schema                                 |
-| `pnpm prisma:format`         | Форматирование Prisma schema                           |
-| `pnpm prisma:migrate:dev`    | Создание/применение dev-миграций                       |
-| `pnpm prisma:migrate:deploy` | Применение готовых миграций                            |
-| `pnpm prisma:seed`           | Demo seed; требует явного `ALLOW_DEMO_SEED=true`       |
-| `pnpm prisma:studio`         | Локальный Prisma Studio                                |
-| `pnpm db:up`                 | Запуск локального PostgreSQL с ожиданием healthcheck   |
-| `pnpm db:down`               | Остановка локального Compose-стека без удаления volume |
-| `pnpm db:logs`               | Поток логов PostgreSQL                                 |
-| `pnpm web:dev`               | Demo-web в Vite dev-режиме на `127.0.0.1:5173`         |
-| `pnpm web:preview`           | Локальный preview production-сборки demo-web           |
-| `pnpm web:format`            | Prettier для demo-web                                  |
-| `pnpm web:lint`              | ESLint для demo-web                                    |
-| `pnpm web:typecheck`         | Strict TypeScript для demo-web                         |
-| `pnpm web:test`              | Unit/component tests demo-web                          |
-| `pnpm web:build`             | Production-сборка demo-web                             |
+| Команда                            | Назначение                                             |
+| ---------------------------------- | ------------------------------------------------------ |
+| `pnpm start:dev`                   | Запуск NestJS в watch-режиме                           |
+| `pnpm build`                       | Production-сборка в `dist/`                            |
+| `pnpm start:prod`                  | Запуск собранного приложения                           |
+| `pnpm lint`                        | Строгая ESLint-проверка                                |
+| `pnpm lint:fix`                    | Безопасные автоматические ESLint-исправления           |
+| `pnpm format`                      | Форматирование исходников и документации               |
+| `pnpm typecheck`                   | TypeScript-проверка без генерации файлов               |
+| `pnpm test`                        | Unit-тесты                                             |
+| `pnpm test:e2e`                    | E2E-тест с реальным локальным PostgreSQL               |
+| `pnpm test:db`                     | PostgreSQL constraint tests на выделенной test-базе    |
+| `pnpm test:performance`            | Локальный opt-in smoke на 10 000 результатов           |
+| `pnpm test:runtime-role`           | Build + production smoke под restricted DB login       |
+| `pnpm openapi:export`              | Обновление versioned OpenAPI snapshot для frontend     |
+| `pnpm openapi:check`               | Проверка актуальности OpenAPI snapshot/checksum        |
+| `pnpm openapi:types`               | Генерация TypeScript API contract из OpenAPI           |
+| `pnpm openapi:types:check`         | Проверка актуальности generated TypeScript contract    |
+| `pnpm prisma:generate`             | Генерация Prisma Client                                |
+| `pnpm prisma:validate`             | Проверка Prisma schema                                 |
+| `pnpm prisma:format`               | Форматирование Prisma schema                           |
+| `pnpm prisma:migrate:dev`          | Создание/применение dev-миграций                       |
+| `pnpm prisma:migrate:deploy`       | Применение готовых миграций                            |
+| `pnpm prisma:seed`                 | Demo seed; требует явного `ALLOW_DEMO_SEED=true`       |
+| `pnpm demo:database-confirmation`  | Точный opt-in token для remote demo seed               |
+| `pnpm demo:provision-runtime-role` | Restricted PostgreSQL login для внешнего demo          |
+| `pnpm prisma:studio`               | Локальный Prisma Studio                                |
+| `pnpm db:up`                       | Запуск локального PostgreSQL с ожиданием healthcheck   |
+| `pnpm db:down`                     | Остановка локального Compose-стека без удаления volume |
+| `pnpm db:logs`                     | Поток логов PostgreSQL                                 |
+| `pnpm web:dev`                     | Demo-web в Vite dev-режиме на `127.0.0.1:5173`         |
+| `pnpm web:preview`                 | Локальный preview production-сборки demo-web           |
+| `pnpm web:format`                  | Prettier для demo-web                                  |
+| `pnpm web:lint`                    | ESLint для demo-web                                    |
+| `pnpm web:typecheck`               | Strict TypeScript для demo-web                         |
+| `pnpm web:test`                    | Unit/component tests demo-web                          |
+| `pnpm web:build`                   | Production-сборка demo-web                             |
+| `pnpm vercel:build`                | Локальный эквивалент backend build command Vercel      |
 
 Команда `db:reset` намеренно отсутствует: случайный reset persistent local database несёт неоправданный риск потери данных.
 

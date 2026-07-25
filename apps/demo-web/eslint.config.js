@@ -11,7 +11,7 @@ export default tseslint.config(
   {
     files: ['**/*.{ts,tsx}'],
     languageOptions: {
-      globals: { ...globals.browser, ...globals.es2023 },
+      globals: { ...globals.browser, ...globals.node, ...globals.es2023 },
       parserOptions: {
         projectService: true,
         tsconfigRootDir: import.meta.dirname,

@@ -233,6 +233,14 @@ async function main(): Promise<void> {
     }
     if (loginCreated) await owner.$executeRawUnsafe(`DROP ROLE IF EXISTS "${loginRole}"`);
     for (const databaseName of revokedPublicConnectDatabases) {
+      const [database] = await owner.$queryRaw<{ exists: boolean }[]>`
+        SELECT EXISTS (
+          SELECT 1
+          FROM pg_database
+          WHERE datname = ${databaseName}
+        ) AS "exists"
+      `;
+      if (!database?.exists) continue;
       const safeDatabaseName = databaseName.replaceAll('"', '""');
       await owner.$executeRawUnsafe(`GRANT CONNECT ON DATABASE "${safeDatabaseName}" TO PUBLIC`);
     }
