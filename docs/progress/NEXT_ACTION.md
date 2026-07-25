@@ -6,36 +6,37 @@ Updated: 2026-07-25
 
 ## Текущая точка
 
-Этапы 0–6 завершены со статусом **PASS**. Воспроизводимый локальный
-production preview Этапа 7 также проходит утверждённый demo-сценарий.
+Этапы 0–7 завершены со статусом **PASS**. Локальный production preview и
+внешний HTTPS demo проверены.
 
-## Единственный незавершённый пункт Этапа 7
+Production:
 
-Завершить реальное размещение уже подготовленных Vercel-проектов:
+- `https://fem-demo-web.vercel.app`;
+- `https://fem-demo-api.vercel.app/api/health`;
+- отдельная Neon demo-база `fem_showcase`;
+- Vercel Node.js 22.x для frontend и backend;
+- фиксированный администратор с password + TOTP;
+- restricted pooled database role для runtime.
 
-1. авторизовать Vercel CLI или импортировать репозиторий через Dashboard;
-2. создать `fem-demo-api` из корня репозитория;
-3. создать отдельную Neon demo-базу через Vercel Marketplace;
-4. применить 17 migrations, guarded seed дважды и one-time admin bootstrap;
-5. создать restricted runtime role и назначить его pooled URL API-проекту;
-6. создать `fem-demo-web` из `apps/demo-web`;
-7. связать frontend с API через `FEM_BACKEND_ORIGIN`;
-8. выполнить clean-browser acceptance smoke.
+## Следующий разрешённый шаг
+
+Показать demo заказчику и собрать замечания только по утверждённому scope:
+
+1. спортсмены;
+2. лошади;
+3. соревнования;
+4. категории/классы;
+5. результаты.
+
+После показа зарегистрировать подтверждённые замечания и определить, какие из
+них входят в P1. Не расширять продукт автоматически.
 
 Полная инструкция:
 [`docs/deployment/VERCEL_DEMO_DEPLOYMENT.md`](../deployment/VERCEL_DEMO_DEPLOYMENT.md).
-Статические demo credentials подготовлены в ignored `.env.vercel.local`;
-database URL пока отсутствует, поэтому bootstrap удалённой учётной записи ещё
-не выполнялся.
-
-Перед внешним показом:
-
-1. задать точный HTTPS `CORS_ALLOWED_ORIGINS`;
-2. оставить secure cookie/HSTS и same-origin frontend proxy;
-3. оставить Swagger выключенным;
-4. не передавать owner URL или bootstrap/seed secrets runtime-функции;
-5. выполнить smoke в чистой browser session;
-6. повторить локальный fallback gate.
+Статические demo credentials хранятся только в ignored
+`.env.vercel.local` и password manager. Owner URL, bootstrap и seed flags не
+переданы runtime-функции. Swagger выключен, secure cookie/HSTS и same-origin
+rewrite проверены.
 
 ## Локальный fallback
 

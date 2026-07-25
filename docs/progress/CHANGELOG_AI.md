@@ -274,3 +274,25 @@
 - Kept all ambient effects static: the only remaining CSS animation is the
   bounded loading spinner.
 - Verified frontend lint, strict typecheck, 17 tests and production build.
+
+## 2026-07-25 — Neon and Vercel customer-demo deployment
+
+- Created the dedicated Neon `fem-showcase` project and `fem_showcase`
+  database, applied all 17 migrations and ran the guarded seed twice with
+  stable counters.
+- Bootstrapped the fixed administrator and provisioned the pooled restricted
+  runtime role; no owner database credential is used by the running API.
+- Added narrow Neon-managed compatibility checks for provider-owned role
+  membership, system databases and `pg_trgm` functions while keeping custom
+  privilege drift fail-closed.
+- Added bounded 120-second transaction timeouts for remote seed/bootstrap
+  operations and a regression test for the reusable transaction helper.
+- Deployed `fem-demo-api` and `fem-demo-web` to Vercel with Node.js 22.x.
+- Replaced the stale NestJS function declaration with Vercel's official
+  zero-configuration NestJS detection.
+- Corrected the Vite serverless ESM import and the SPA fallback, then adopted
+  a fixed same-origin `/api/v1/:path*` rewrite to the backend production alias.
+- Verified production health, restricted access, disabled Swagger, security
+  headers, password plus TOTP login, athlete/horse lists and competition
+  classes/results.
+- Final external demo gate: **GO**.

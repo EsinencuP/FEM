@@ -1,6 +1,6 @@
 # Vercel demo deployment
 
-Status: prepared, external account provisioning still required  
+Status: deployed and production-smoke verified on 2026-07-25
 Scope: protected DB-first demo-MVP from `FEM_MVP_ACCELERATED_PLAN.md` 3.0
 
 ## Resulting architecture
@@ -8,7 +8,7 @@ Scope: protected DB-first demo-MVP from `FEM_MVP_ACCELERATED_PLAN.md` 3.0
 ```text
 Browser
   -> Vercel project: FEM demo-web
-       -> same-origin /api/v1 proxy
+       -> same-origin /api/v1 external rewrite
             -> Vercel project: FEM NestJS API
                  -> pooled restricted connection
                       -> dedicated Neon PostgreSQL demo database
@@ -29,6 +29,11 @@ Two Vercel Projects are created from the same Git repository:
 The frontend proxy keeps the browser on one origin. The API session therefore
 retains `HttpOnly`, `Secure`, `SameSite=Strict` and the `/api/v1` cookie path.
 Do not replace this with a browser-to-backend cross-origin URL.
+
+Production aliases:
+
+- frontend: `https://fem-demo-web.vercel.app`;
+- backend health: `https://fem-demo-api.vercel.app/api/health`.
 
 ## 1. Prerequisites
 
@@ -114,6 +119,11 @@ Remove-Item Env:ALLOW_REMOTE_DEMO_SEED
 Remove-Item Env:REMOTE_DEMO_DATABASE_CONFIRMATION
 ```
 
+The remote seed uses a bounded 120-second interactive transaction timeout.
+This is intentionally longer than the local default because TLS and managed
+database round trips can exceed Prisma's five-second interactive transaction
+default. It does not weaken the seed's database-name and confirmation gates.
+
 ## 5. Bootstrap the permanent demo administrator once
 
 Load the fixed values from the ignored `.env.vercel.local` into the current
@@ -137,6 +147,9 @@ secret remain stable; the six-digit authenticator code changes normally every
 the same during bootstrap and every API deployment for this database. Losing or
 changing it makes the stored TOTP secret unreadable.
 
+The remote bootstrap transaction also uses a bounded 120-second timeout. The
+script remains one-shot and refuses to replace an existing administrator.
+
 ## 6. Provision the restricted runtime database role
 
 Use the owner credential and values from `.env.vercel.local`:
@@ -159,6 +172,20 @@ If the final adjacent-database check fails, stop. In a dedicated Neon project,
 review the listed databases and revoke their default `PUBLIC CONNECT` only
 after confirming no other workload uses them. Do not run a broad revoke on a
 shared PostgreSQL cluster. Rerun the command until the preflight passes.
+
+Neon-managed PostgreSQL has three provider-owned behaviors that the runtime
+preflight recognizes narrowly:
+
+- the database owner receives an automatic non-inheriting administrative
+  membership in newly created roles;
+- provider system databases `postgres`, `template0` and `template1` retain
+  managed connectivity;
+- `pg_trgm` extension functions retain provider-managed `PUBLIC EXECUTE`.
+
+The exceptions apply only when the Neon marker role is present, and the
+function exception applies only to functions registered as members of the
+`pg_trgm` extension. User-created adjacent databases, custom functions,
+unexpected grants and unsafe role attributes still fail the production gate.
 
 In Neon, open **Connect**, select `fem_demo_runtime`, choose the pooled
 connection and copy its URL. That pooled URL becomes the API project's
@@ -215,15 +242,14 @@ reason to switch back to the owner credential.
 2. Name it `fem-demo-web`.
 3. Set Root Directory to `apps/demo-web`.
 4. Set Node.js to `22.x`.
-5. Add one Production environment variable:
+5. Keep `VITE_API_BASE_URL` unset in production. The compiled frontend defaults
+   to relative `/api/v1` requests.
 
-```text
-FEM_BACKEND_ORIGIN=https://<fem-demo-api-production-domain>
-```
-
-Do not set `VITE_API_BASE_URL` in production. The compiled frontend defaults to
-the relative `/api/v1` endpoint, which is implemented by
-`apps/demo-web/api/v1/[...path].ts`.
+`apps/demo-web/vercel.json` contains a fixed, narrow rewrite from
+`/api/v1/:path*` to the stable `https://fem-demo-api.vercel.app/api/v1/:path*`
+alias. The SPA fallback explicitly excludes `/api/`, so API requests cannot be
+accidentally served `index.html`. The browser remains on the frontend origin,
+and Vercel forwards the request and response cookies.
 
 Deploy the frontend. After its final stable domain is known, update
 `CORS_ALLOWED_ORIGINS` in the API project to that exact HTTPS origin and
@@ -279,7 +305,7 @@ pnpm web:preview
 
 Use `127.0.0.1` consistently for both local applications.
 
-## 13. Verified preparation gate
+## 13. Verified deployment gate
 
 Verified locally on 2026-07-25 with Node.js 22.23.1, pnpm 11.9.0,
 PostgreSQL 16 and Vercel CLI 56.5.0:
@@ -288,16 +314,31 @@ PostgreSQL 16 and Vercel CLI 56.5.0:
   `fem_audit_vercel_deploy_20260725`;
 - guarded seed ran twice with stable counters;
 - Prisma validate and generate passed;
-- backend lint, strict typecheck, 73 unit tests and build passed;
+- backend lint, strict typecheck, 74 unit tests and build passed;
 - database constraint suites passed: 28 tests;
 - E2E passed: 12 suites, 85 tests;
-- demo-web lint, strict typecheck, 15 tests and production build passed;
+- demo-web lint, strict typecheck, 18 tests and production build passed;
 - same-origin Vercel proxy tests passed, including secure session-cookie
   forwarding and fail-closed behavior;
 - Graphify refreshed to 2466 nodes, 5153 edges and 179 communities;
 - prepared secret values are absent from tracked files.
 
-`vercel build` and the real HTTPS smoke require an authenticated Vercel
-project. The repository is prepared, but it is not accurate to call the
-external demo deployed until the account, Neon database and environment
-variables from sections 2–8 are configured.
+External deployment completed on 2026-07-25:
+
+- Neon project `fem-showcase`, database `fem_showcase`;
+- all 17 migrations applied;
+- seed executed twice with stable counts: 5 countries, 1 federation,
+  3 disciplines, 4 clubs, 16 athletes, 16 horses, 5 owners, 3 events,
+  12 classes, 60 results and 1 ranking snapshot;
+- restricted runtime role provisioned and production startup preflight passed;
+- backend Vercel project `fem-demo-api`, Node.js 22.x, production alias ready;
+- frontend Vercel project `fem-demo-web`, Node.js 22.x, production alias ready;
+- HTTPS smoke: health `200` with `database=connected`, Public API `200`,
+  unauthenticated Admin API `401`, Swagger `404`;
+- fixed password plus TOTP login succeeded through the frontend same-origin
+  route;
+- authenticated athlete and horse lists each returned 16 records;
+- competitions returned 3 events, 12 classes and linked result rows;
+- frontend CSP, HSTS and `X-Frame-Options: DENY` are present.
+
+Final external demo status: **GO**.

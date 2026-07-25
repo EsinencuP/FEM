@@ -1,6 +1,6 @@
 # FEM DB-first demo TODO
 
-Updated: 2026-07-24
+Updated: 2026-07-25
 
 Источник scope: `FEM_MVP_ACCELERATED_PLAN.md` версии 3.0.
 
@@ -42,8 +42,7 @@ Updated: 2026-07-24
 - [x] Реализовать loading/empty/filtered-empty/error/404.
 - [x] Выполнить integration QA.
 - [x] Подготовить воспроизводимый локальный production preview.
-- [ ] Разместить внешний HTTPS preview после предоставления hosting access,
-      DNS/TLS и deployment secrets.
+- [x] Разместить внешний HTTPS preview на Vercel с отдельной Neon demo-базой.
 
 ## P1 — после demo
 

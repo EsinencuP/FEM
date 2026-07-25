@@ -56,12 +56,12 @@ standalone class/result screens.
 
 - Prisma format/validate/generate — PASS;
 - backend ESLint / strict TypeScript / build — PASS;
-- backend unit — 10 suites / 73 tests;
+- backend unit — 10 suites / 74 tests;
 - DB — 2 suites / 28 tests;
 - E2E — 12 suites / 85 tests;
 - OpenAPI snapshot/checksum and generated types — PASS;
 - demo-web ESLint / strict TypeScript / build — PASS;
-- demo-web unit/component — 4 files / 17 tests;
+- demo-web unit/component — 5 files / 18 tests;
 - browser QA — PASS at 1280×800 and accessible 390×844;
 - local production preview — PASS at `http://127.0.0.1:5173`.
 
@@ -71,14 +71,24 @@ database was not reset or dropped.
 Deployment audit database: `fem_audit_vercel_deploy_20260725`. All 17
 migrations applied from zero; demo seed ran twice with stable counters; E2E
 passed 12 suites / 85 tests. Static demo credentials and cryptographic inputs
-are stored only in ignored `.env.vercel.local`; remote database URLs are not
-present yet.
+are stored only in ignored `.env.vercel.local`.
+
+Remote demo database: Neon project `fem-showcase`, database `fem_showcase`.
+All 17 migrations are applied, the seed ran twice with stable counters and the
+fixed administrator plus restricted runtime role are provisioned.
+
+Production deployments:
+
+- frontend: `https://fem-demo-web.vercel.app`;
+- backend: `https://fem-demo-api.vercel.app`;
+- both Vercel projects use Node.js 22.x;
+- backend uses the pooled restricted database role;
+- frontend uses the same-origin `/api/v1/:path*` rewrite.
 
 ## Current boundary
 
 Local demo status: **GO**.
 
-External demo status: **CONDITIONAL GO**. Do not claim deployed readiness until
-the Vercel account is authorized, the dedicated Neon database is provisioned,
-migrations/seed/bootstrap are completed, both projects are deployed and the
-exact HTTPS smoke is verified in a clean browser session.
+External demo status: **GO**. Production HTTPS smoke verified health, database
+connectivity, Admin API protection, disabled Swagger, security headers, fixed
+password plus TOTP login and the athlete, horse and competition workflows.
