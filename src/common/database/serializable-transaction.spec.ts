@@ -1,4 +1,4 @@
-import type { PrismaClient } from '@prisma/client';
+import type { Prisma, PrismaClient } from '@prisma/client';
 
 import { withSerializableTransaction } from './serializable-transaction';
 
@@ -17,5 +17,29 @@ describe('withSerializableTransaction', () => {
       withSerializableTransaction(prisma, () => Promise.resolve('completed')),
     ).resolves.toBe('completed');
     expect(transactionMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('passes an explicit timeout to the interactive Prisma transaction', async () => {
+    const transactionMock = jest.fn().mockImplementation(
+      async (
+        operation: (transaction: Prisma.TransactionClient) => Promise<string>,
+      ): Promise<string> => operation({} as Prisma.TransactionClient),
+    );
+    const prisma = {
+      $transaction: transactionMock,
+    } as unknown as PrismaClient;
+
+    await expect(
+      withSerializableTransaction(
+        prisma,
+        () => Promise.resolve('completed'),
+        3,
+        120_000,
+      ),
+    ).resolves.toBe('completed');
+    expect(transactionMock).toHaveBeenCalledWith(expect.any(Function), {
+      isolationLevel: 'Serializable',
+      timeout: 120_000,
+    });
   });
 });

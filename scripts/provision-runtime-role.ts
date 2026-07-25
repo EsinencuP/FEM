@@ -110,8 +110,7 @@ async function provisionRuntimeRole(): Promise<void> {
 
     if (existing) {
       await prisma.$executeRawUnsafe(
-        `ALTER ROLE ${quotedIdentifier(runtimeUser)} WITH LOGIN INHERIT ` +
-          `NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS ` +
+        `ALTER ROLE ${quotedIdentifier(runtimeUser)} WITH ` +
           `PASSWORD ${quotedLiteral(runtimePassword)}`,
       );
     } else {
@@ -130,6 +129,12 @@ async function provisionRuntimeRole(): Promise<void> {
       `SELECT datname AS "databaseName" FROM pg_database ` +
         `WHERE datallowconn = true AND datname <> current_database() ` +
         `AND has_database_privilege(${quotedLiteral(runtimeUser)}, oid, 'CONNECT') ` +
+        `AND NOT (` +
+        `  datname IN ('postgres', 'template0', 'template1') ` +
+        `  AND EXISTS (` +
+        `    SELECT 1 FROM pg_roles WHERE rolname = 'neon_superuser'` +
+        `  )` +
+        `) ` +
         `ORDER BY datname`,
     );
     if (adjacentDatabases.length > 0) {

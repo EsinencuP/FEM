@@ -348,6 +348,7 @@ export async function withSerializableTransaction<T>(
   prisma: PrismaClient,
   operation: (transaction: Prisma.TransactionClient) => Promise<T>,
   maxAttempts = DEFAULT_MAX_ATTEMPTS,
+  transactionTimeoutMs?: number,
 ): Promise<T> {
   if (idempotencyContext()) {
     idempotencyOperationsSinceCleanup += 1;
@@ -408,6 +409,7 @@ export async function withSerializableTransaction<T>(
         },
         {
           isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
+          ...(transactionTimeoutMs === undefined ? {} : { timeout: transactionTimeoutMs }),
         },
       );
     } catch (error: unknown) {

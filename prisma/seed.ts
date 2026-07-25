@@ -338,7 +338,7 @@ async function assertNoDeterministicIdCollisions(client: SeedClient): Promise<vo
 
 export async function seedDatabase(client: PrismaClient): Promise<SeedSummary> {
   assertSafeDemoSeedEnvironment(process.env);
-  return withSerializableTransaction(client, (transaction) => seedData(transaction));
+  return withSerializableTransaction(client, (transaction) => seedData(transaction), 3, 120_000);
 }
 
 async function seedData(client: SeedClient): Promise<SeedSummary> {

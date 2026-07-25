@@ -97,6 +97,21 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
             OR (
               expected_role_membership.roleid = expected_role.oid
               AND expected_role_membership.member <> role.oid
+              AND NOT (
+                EXISTS (
+                  SELECT 1
+                  FROM pg_roles neon_marker
+                  WHERE neon_marker.rolname = 'neon_superuser'
+                )
+                AND expected_role_membership.member = (
+                  SELECT database_owner.datdba
+                  FROM pg_database database_owner
+                  WHERE database_owner.datname = current_database()
+                )
+                AND expected_role_membership.admin_option = true
+                AND expected_role_membership.inherit_option = false
+                AND expected_role_membership.set_option = false
+              )
             )
         ) AS "expectedRoleHasUnexpectedMembership",
         EXISTS (
@@ -108,6 +123,14 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
               current_user,
               other_database.oid,
               'CONNECT'
+            )
+            AND NOT (
+              other_database.datname IN ('postgres', 'template0', 'template1')
+              AND EXISTS (
+                SELECT 1
+                FROM pg_roles neon_marker
+                WHERE neon_marker.rolname = 'neon_superuser'
+              )
             )
         ) AS "hasOtherDatabaseConnect",
         current_setting('session_replication_role') <> 'origin'
@@ -576,6 +599,16 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
             AND runtime_function_namespace.nspname NOT LIKE 'pg_toast%'
             AND runtime_function_namespace.nspname NOT LIKE 'pg_temp_%'
             AND has_function_privilege(current_user, runtime_function.oid, 'EXECUTE')
+            AND NOT EXISTS (
+              SELECT 1
+              FROM pg_depend extension_dependency
+              JOIN pg_extension trusted_extension
+                ON trusted_extension.oid = extension_dependency.refobjid
+              WHERE extension_dependency.classid = 'pg_proc'::regclass
+                AND extension_dependency.objid = runtime_function.oid
+                AND extension_dependency.deptype = 'e'
+                AND trusted_extension.extname = 'pg_trgm'
+            )
         ) AS "hasFunctionPrivilege",
         NOT has_schema_privilege(current_user, 'public', 'USAGE') AS "missingSchemaUsage",
         (

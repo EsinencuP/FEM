@@ -121,7 +121,7 @@ async function bootstrapAdmin(): Promise<void> {
       },
     });
     return user.id;
-  });
+  }, { timeout: 120_000 });
 
   process.stdout.write(`Administrator ${userId} created.\n`);
   process.stdout.write(
