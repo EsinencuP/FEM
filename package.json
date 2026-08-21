@@ -27,6 +27,8 @@
     "openapi:types": "tsx scripts/generate-openapi-types.ts",
     "openapi:types:check": "tsx scripts/generate-openapi-types.ts --check",
     "admin:bootstrap": "tsx scripts/bootstrap-admin.ts",
+    "portfolio:reset": "tsx scripts/reset-portfolio-demo.ts",
+    "portfolio:inspect": "tsx scripts/inspect-portfolio-data.ts",
     "demo:database-confirmation": "tsx scripts/demo-database-confirmation.ts",
     "demo:provision-runtime-role": "tsx scripts/provision-runtime-role.ts",
     "prisma:generate": "prisma generate --schema prisma/schema.prisma",

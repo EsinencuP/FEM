@@ -19,6 +19,7 @@ import { ErrorState, LoadingState } from '../components/PageState';
 import { useApi } from '../hooks/useApi';
 import { useLookups } from '../hooks/useLookups';
 import { displayValue, formText, formatDate } from '../utils/format';
+import { portfolioReadonly } from '../config/portfolio';
 
 export function HorseDetailPage(): ReactNode {
   const { id = '' } = useParams();
@@ -75,7 +76,11 @@ export function HorseDetailPage(): ReactNode {
         eyebrow="Карточка лошади"
         title={item.displayName}
         description={`${item.countryOfBirth?.name ?? 'Страна не указана'} · обновлено ${formatDate(item.updatedAt)}`}
-        action={<Button onClick={() => setEditing(true)}>Редактировать</Button>}
+        action={
+          portfolioReadonly ? undefined : (
+            <Button onClick={() => setEditing(true)}>Редактировать</Button>
+          )
+        }
       />
       <section className="detail-grid">
         <article className="detail-card detail-card--primary">
@@ -182,86 +187,88 @@ export function HorseDetailPage(): ReactNode {
           )}
         </article>
       </section>
-      <Drawer open={editing} title="Редактировать лошадь" onClose={() => setEditing(false)}>
-        <FormFeedback error={formError} />
-        <form className="form-grid" onSubmit={(event) => void update(event)}>
-          <FormField label="Отображаемое имя" htmlFor="edit-horse-display">
-            <input
-              id="edit-horse-display"
-              name="displayName"
-              defaultValue={item.displayName}
-              maxLength={240}
-              required
-            />
-          </FormField>
-          <FormField label="Паспортное имя" htmlFor="edit-horse-passport">
-            <input
-              id="edit-horse-passport"
-              name="passportName"
-              defaultValue={item.passportName ?? ''}
-              maxLength={240}
-            />
-          </FormField>
-          <FormField label="Пол" htmlFor="edit-horse-sex">
-            <input id="edit-horse-sex" name="sex" defaultValue={item.sex ?? ''} maxLength={80} />
-          </FormField>
-          <FormField label="Порода" htmlFor="edit-horse-breed">
-            <input
-              id="edit-horse-breed"
-              name="breed"
-              defaultValue={item.breed ?? ''}
-              maxLength={160}
-            />
-          </FormField>
-          <FormField label="Масть" htmlFor="edit-horse-color">
-            <input
-              id="edit-horse-color"
-              name="color"
-              defaultValue={item.color ?? ''}
-              maxLength={120}
-            />
-          </FormField>
-          <FormField label="Год рождения" htmlFor="edit-horse-year">
-            <input
-              id="edit-horse-year"
-              name="birthYear"
-              type="number"
-              min={1000}
-              max={2100}
-              defaultValue={item.birthYear ?? ''}
-            />
-          </FormField>
-          <FormField label="Страна рождения" htmlFor="edit-horse-country">
-            <select
-              id="edit-horse-country"
-              name="countryOfBirthId"
-              defaultValue={item.countryOfBirthId ?? ''}
-            >
-              <option value="">Не указана</option>
-              {lookups.data?.countries.map((country) => (
-                <option key={country.id} value={country.id}>
-                  {country.name}
-                </option>
-              ))}
-            </select>
-          </FormField>
-          <FormField label="Статус" htmlFor="edit-horse-status">
-            <select id="edit-horse-status" name="status" defaultValue={item.status}>
-              <option value="ACTIVE">ACTIVE</option>
-              <option value="DRAFT">DRAFT</option>
-              <option value="INACTIVE">INACTIVE</option>
-            </select>
-          </FormField>
-          <div className="form-actions">
-            <Button type="button" variant="secondary" onClick={() => setEditing(false)}>
-              Отмена
-            </Button>
-            <Button type="submit" busy={saving}>
-              Сохранить
-            </Button>
-          </div>
-        </form>
-      </Drawer>
+      {!portfolioReadonly ? (
+        <Drawer open={editing} title="Редактировать лошадь" onClose={() => setEditing(false)}>
+          <FormFeedback error={formError} />
+          <form className="form-grid" onSubmit={(event) => void update(event)}>
+            <FormField label="Отображаемое имя" htmlFor="edit-horse-display">
+              <input
+                id="edit-horse-display"
+                name="displayName"
+                defaultValue={item.displayName}
+                maxLength={240}
+                required
+              />
+            </FormField>
+            <FormField label="Паспортное имя" htmlFor="edit-horse-passport">
+              <input
+                id="edit-horse-passport"
+                name="passportName"
+                defaultValue={item.passportName ?? ''}
+                maxLength={240}
+              />
+            </FormField>
+            <FormField label="Пол" htmlFor="edit-horse-sex">
+              <input id="edit-horse-sex" name="sex" defaultValue={item.sex ?? ''} maxLength={80} />
+            </FormField>
+            <FormField label="Порода" htmlFor="edit-horse-breed">
+              <input
+                id="edit-horse-breed"
+                name="breed"
+                defaultValue={item.breed ?? ''}
+                maxLength={160}
+              />
+            </FormField>
+            <FormField label="Масть" htmlFor="edit-horse-color">
+              <input
+                id="edit-horse-color"
+                name="color"
+                defaultValue={item.color ?? ''}
+                maxLength={120}
+              />
+            </FormField>
+            <FormField label="Год рождения" htmlFor="edit-horse-year">
+              <input
+                id="edit-horse-year"
+                name="birthYear"
+                type="number"
+                min={1000}
+                max={2100}
+                defaultValue={item.birthYear ?? ''}
+              />
+            </FormField>
+            <FormField label="Страна рождения" htmlFor="edit-horse-country">
+              <select
+                id="edit-horse-country"
+                name="countryOfBirthId"
+                defaultValue={item.countryOfBirthId ?? ''}
+              >
+                <option value="">Не указана</option>
+                {lookups.data?.countries.map((country) => (
+                  <option key={country.id} value={country.id}>
+                    {country.name}
+                  </option>
+                ))}
+              </select>
+            </FormField>
+            <FormField label="Статус" htmlFor="edit-horse-status">
+              <select id="edit-horse-status" name="status" defaultValue={item.status}>
+                <option value="ACTIVE">ACTIVE</option>
+                <option value="DRAFT">DRAFT</option>
+                <option value="INACTIVE">INACTIVE</option>
+              </select>
+            </FormField>
+            <div className="form-actions">
+              <Button type="button" variant="secondary" onClick={() => setEditing(false)}>
+                Отмена
+              </Button>
+              <Button type="submit" busy={saving}>
+                Сохранить
+              </Button>
+            </div>
+          </form>
+        </Drawer>
+      ) : null}
     </>
   );
 }

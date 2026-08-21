@@ -65,8 +65,14 @@ export class AuthService {
 
   async login(dto: LoginDto, metadata: RequestSecurityMetadata): Promise<LoginResult> {
     const now = new Date();
+    const suppliedIdentifier = dto.email.trim().toLowerCase();
+    const email =
+      this.config.portfolioReadonlyMode &&
+      suppliedIdentifier === this.config.portfolioDemoUsername.toLowerCase()
+        ? this.config.portfolioDemoEmail
+        : suppliedIdentifier;
     const user = await this.prisma.user.findUnique({
-      where: { email: dto.email.toLowerCase() },
+      where: { email },
       include: {
         credential: true,
         userRoles: {
@@ -109,6 +115,14 @@ export class AuthService {
       throw this.invalidCredentials();
     }
 
+    if (
+      !this.config.portfolioReadonlyMode &&
+      (dto.otp === undefined) === (dto.recoveryCode === undefined)
+    ) {
+      await this.recordFailedLogin(user.id, metadata);
+      throw this.invalidCredentials();
+    }
+
     const totpSecret = decryptSecret(
       user.credential.totpSecretEncrypted,
       this.config.authEncryptionKey,
@@ -117,9 +131,11 @@ export class AuthService {
       ? hashToken(dto.recoveryCode.trim().toUpperCase())
       : undefined;
     const totpStep = dto.otp ? BigInt(Math.floor(now.getTime() / TOTP_STEP_MS)) : undefined;
-    const secondFactorValid = dto.otp
-      ? authenticator.verify({ secret: totpSecret, token: dto.otp })
-      : recoveryCodeHash !== undefined;
+    const secondFactorValid = this.config.portfolioReadonlyMode
+      ? dto.otp === undefined && recoveryCodeHash === undefined
+      : dto.otp
+        ? authenticator.verify({ secret: totpSecret, token: dto.otp })
+        : recoveryCodeHash !== undefined;
     if (!secondFactorValid) {
       await this.recordFailedLogin(user.id, metadata);
       throw this.invalidCredentials();

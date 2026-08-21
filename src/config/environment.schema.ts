@@ -71,6 +71,10 @@ export const environmentSchema = z
     SWAGGER_ENABLED: booleanStringSchema.default(true),
     SWAGGER_USERNAME: z.string().trim().min(1).optional(),
     SWAGGER_PASSWORD: z.string().min(16).optional(),
+    PORTFOLIO_READONLY_MODE: booleanStringSchema.default(false),
+    PORTFOLIO_DEMO_USERNAME: z.string().trim().min(1).max(120).default('admin1'),
+    PORTFOLIO_DEMO_EMAIL: z.email().default('admin1@fem.local'),
+    PORTFOLIO_DEMO_PASSWORD: z.string().min(1).max(200).default('123'),
   })
   .superRefine((value, context) => {
     if (value.NODE_ENV === 'production' && value.CORS_ALLOWED_ORIGINS.length === 0) {
@@ -114,6 +118,13 @@ export const environmentSchema = z
         code: 'custom',
         path: ['AUTH_SESSION_IDLE_MINUTES'],
         message: 'AUTH_SESSION_IDLE_MINUTES must not exceed AUTH_SESSION_TTL_MINUTES',
+      });
+    }
+    if (value.PORTFOLIO_READONLY_MODE && value.NODE_ENV !== 'production') {
+      context.addIssue({
+        code: 'custom',
+        path: ['PORTFOLIO_READONLY_MODE'],
+        message: 'PORTFOLIO_READONLY_MODE is reserved for production portfolio deployments',
       });
     }
   });

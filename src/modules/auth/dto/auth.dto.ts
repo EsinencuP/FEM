@@ -15,16 +15,7 @@ export class LoginDto {
       otp: otpSchema.optional(),
       recoveryCode: z.string().trim().min(8).max(64).optional(),
     })
-    .strict()
-    .superRefine((value, context) => {
-      if ((value.otp === undefined) === (value.recoveryCode === undefined)) {
-        context.addIssue({
-          code: 'custom',
-          path: ['otp'],
-          message: 'Provide exactly one of otp or recoveryCode',
-        });
-      }
-    });
+    .strict();
 
   @ApiProperty({ format: 'email', example: 'admin@example.invalid' })
   email!: string;

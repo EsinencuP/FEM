@@ -24,6 +24,7 @@ import { useApi } from '../hooks/useApi';
 import { useListState } from '../hooks/useListState';
 import { useLookups } from '../hooks/useLookups';
 import { displayValue, formText } from '../utils/format';
+import { portfolioReadonly } from '../config/portfolio';
 
 export function HorsesPage(): ReactNode {
   const state = useListState('displayName');
@@ -127,7 +128,11 @@ export function HorsesPage(): ReactNode {
         eyebrow="Реестр / 02"
         title="Лошади"
         description="Карточки лошадей и их связи со спортсменами и результатами."
-        action={<Button onClick={() => setDrawerOpen(true)}>Добавить лошадь</Button>}
+        action={
+          portfolioReadonly ? undefined : (
+            <Button onClick={() => setDrawerOpen(true)}>Добавить лошадь</Button>
+          )
+        }
       />
       <FilterBar onReset={state.reset}>
         <FilterControl label="Поиск">
@@ -208,59 +213,61 @@ export function HorsesPage(): ReactNode {
           <Pagination meta={horses.data.meta} onPage={(page) => state.set({ page })} />
         </>
       ) : null}
-      <Drawer
-        open={drawerOpen}
-        title="Новая лошадь"
-        description="Официальные FEI, паспортные и microchip ID не генерируются."
-        onClose={() => setDrawerOpen(false)}
-      >
-        <FormFeedback error={formError} />
-        <form className="form-grid" onSubmit={(event) => void create(event)}>
-          <FormField label="Отображаемое имя" htmlFor="horse-display">
-            <input id="horse-display" name="displayName" maxLength={240} required />
-          </FormField>
-          <FormField label="Паспортное имя" htmlFor="horse-passport">
-            <input id="horse-passport" name="passportName" maxLength={240} />
-          </FormField>
-          <FormField label="Пол" htmlFor="horse-sex">
-            <input id="horse-sex" name="sex" maxLength={80} />
-          </FormField>
-          <FormField label="Порода" htmlFor="horse-breed">
-            <input id="horse-breed" name="breed" maxLength={160} />
-          </FormField>
-          <FormField label="Масть" htmlFor="horse-color">
-            <input id="horse-color" name="color" maxLength={120} />
-          </FormField>
-          <FormField label="Год рождения" htmlFor="horse-year">
-            <input id="horse-year" name="birthYear" type="number" min={1000} max={2100} />
-          </FormField>
-          <FormField label="Страна рождения" htmlFor="horse-country">
-            <select id="horse-country" name="countryOfBirthId">
-              <option value="">Не указана</option>
-              {lookups.data?.countries.map((country) => (
-                <option key={country.id} value={country.id}>
-                  {country.name}
-                </option>
-              ))}
-            </select>
-          </FormField>
-          <FormField label="Статус" htmlFor="horse-status">
-            <select id="horse-status" name="status" defaultValue="ACTIVE">
-              <option value="ACTIVE">ACTIVE</option>
-              <option value="DRAFT">DRAFT</option>
-              <option value="INACTIVE">INACTIVE</option>
-            </select>
-          </FormField>
-          <div className="form-actions">
-            <Button type="button" variant="secondary" onClick={() => setDrawerOpen(false)}>
-              Отмена
-            </Button>
-            <Button type="submit" busy={saving}>
-              Создать
-            </Button>
-          </div>
-        </form>
-      </Drawer>
+      {!portfolioReadonly ? (
+        <Drawer
+          open={drawerOpen}
+          title="Новая лошадь"
+          description="Официальные FEI, паспортные и microchip ID не генерируются."
+          onClose={() => setDrawerOpen(false)}
+        >
+          <FormFeedback error={formError} />
+          <form className="form-grid" onSubmit={(event) => void create(event)}>
+            <FormField label="Отображаемое имя" htmlFor="horse-display">
+              <input id="horse-display" name="displayName" maxLength={240} required />
+            </FormField>
+            <FormField label="Паспортное имя" htmlFor="horse-passport">
+              <input id="horse-passport" name="passportName" maxLength={240} />
+            </FormField>
+            <FormField label="Пол" htmlFor="horse-sex">
+              <input id="horse-sex" name="sex" maxLength={80} />
+            </FormField>
+            <FormField label="Порода" htmlFor="horse-breed">
+              <input id="horse-breed" name="breed" maxLength={160} />
+            </FormField>
+            <FormField label="Масть" htmlFor="horse-color">
+              <input id="horse-color" name="color" maxLength={120} />
+            </FormField>
+            <FormField label="Год рождения" htmlFor="horse-year">
+              <input id="horse-year" name="birthYear" type="number" min={1000} max={2100} />
+            </FormField>
+            <FormField label="Страна рождения" htmlFor="horse-country">
+              <select id="horse-country" name="countryOfBirthId">
+                <option value="">Не указана</option>
+                {lookups.data?.countries.map((country) => (
+                  <option key={country.id} value={country.id}>
+                    {country.name}
+                  </option>
+                ))}
+              </select>
+            </FormField>
+            <FormField label="Статус" htmlFor="horse-status">
+              <select id="horse-status" name="status" defaultValue="ACTIVE">
+                <option value="ACTIVE">ACTIVE</option>
+                <option value="DRAFT">DRAFT</option>
+                <option value="INACTIVE">INACTIVE</option>
+              </select>
+            </FormField>
+            <div className="form-actions">
+              <Button type="button" variant="secondary" onClick={() => setDrawerOpen(false)}>
+                Отмена
+              </Button>
+              <Button type="submit" busy={saving}>
+                Создать
+              </Button>
+            </div>
+          </form>
+        </Drawer>
+      ) : null}
     </>
   );
 }

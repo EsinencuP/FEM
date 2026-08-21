@@ -115,4 +115,20 @@ export class AppConfigService {
   get isProduction(): boolean {
     return this.nodeEnv === 'production';
   }
+
+  get portfolioReadonlyMode(): boolean {
+    return this.configService.getOrThrow('PORTFOLIO_READONLY_MODE', { infer: true });
+  }
+
+  get portfolioDemoUsername(): string {
+    return this.configService.getOrThrow('PORTFOLIO_DEMO_USERNAME', { infer: true });
+  }
+
+  get portfolioDemoEmail(): string {
+    return this.configService.getOrThrow('PORTFOLIO_DEMO_EMAIL', { infer: true }).toLowerCase();
+  }
+
+  get portfolioDemoPassword(): string {
+    return this.configService.getOrThrow('PORTFOLIO_DEMO_PASSWORD', { infer: true });
+  }
 }

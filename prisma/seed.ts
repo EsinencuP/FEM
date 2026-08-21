@@ -24,13 +24,13 @@ const DEMO_CLASS_COUNT_PER_EVENT = 4;
 const DEMO_RESULT_COUNT = 60;
 
 const DEMO_CATEGORIES = [
-  'Открытый класс (демо)',
-  'Юниоры (демо)',
-  'Любители (демо)',
-  'Молодые лошади (демо)',
+  'Открытый класс',
+  'Юниоры',
+  'Любители',
+  'Молодые лошади',
 ] as const;
 
-const DEMO_LEVELS = ['Базовый (демо)', 'Средний (демо)', 'Открытый (демо)'] as const;
+const DEMO_LEVELS = ['Базовый', 'Средний', 'Открытый'] as const;
 
 export function demoId(key: string): string {
   const hex = createHash('sha256').update(`fem:${DEMO_SEED_VERSION}:${key}`).digest('hex');
@@ -351,16 +351,16 @@ async function seedData(client: SeedClient): Promise<SeedSummary> {
   ] as const;
 
   const disciplineInput = [
-    ['DEMO_DRESSAGE', 'Выездка (демо)'],
-    ['DEMO_JUMPING', 'Конкур (демо)'],
-    ['DEMO_EVENTING', 'Троеборье (демо)'],
+    ['DEMO_DRESSAGE', 'Выездка'],
+    ['DEMO_JUMPING', 'Конкур'],
+    ['DEMO_EVENTING', 'Троеборье'],
   ] as const;
 
   const clubNames = [
-    'Клуб верховой езды «Кодру» — демо',
-    'Конноспортивный центр «Нистру» — демо',
-    'Арена Орхей — демо',
-    'Школа верховой езды «Стяуа» — демо',
+    'Клуб верховой езды «Кодру»',
+    'Конноспортивный центр «Нистру»',
+    'Арена Орхей',
+    'Школа верховой езды «Стяуа»',
   ] as const;
 
   const athleteInput = [
@@ -418,7 +418,7 @@ async function seedData(client: SeedClient): Promise<SeedSummary> {
     where: { id: federationId },
     update: {
       countryId: moldova.id,
-      name: 'National Equestrian Federation of Moldova — Demo Record',
+      name: 'National Equestrian Federation of Moldova',
       shortName: 'FEM DEMO',
       status: RecordStatus.DRAFT,
       isDemo: true,
@@ -427,7 +427,7 @@ async function seedData(client: SeedClient): Promise<SeedSummary> {
     create: {
       id: federationId,
       countryId: moldova.id,
-      name: 'National Equestrian Federation of Moldova — Demo Record',
+      name: 'National Equestrian Federation of Moldova',
       shortName: 'FEM DEMO',
       status: RecordStatus.DRAFT,
       isDemo: true,

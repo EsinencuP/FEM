@@ -139,6 +139,39 @@ demo-учётной записи, restricted runtime role, Vercel variables и s
 Секреты demo-размещения находятся только в локальном ignored
 `.env.vercel.local` и должны быть перенесены в Vercel Secret Manager.
 
+### Портфолио-режим (только просмотр)
+
+Для временного публичного показа включается production-переменная
+`PORTFOLIO_READONLY_MODE=true`. В этом режиме backend принимает только
+чтение для `/api/v1/admin/**`, а все POST/PATCH/DELETE отклоняются на сервере.
+Frontend скрывает формы редактирования и показывает постоянные данные входа:
+
+```text
+Логин: admin1
+Пароль: 123
+```
+
+Это демонстрационные credentials, намеренно видимые посетителям. Не используйте
+их для реальных данных и не открывайте такой deployment для рабочих операций.
+Google-аутентификация в проекте не используется; portfolio login работает по
+логину и паролю, без запроса второго фактора. Для возврата к обычному режиму
+установите `PORTFOLIO_READONLY_MODE=false` и задайте защищённые credentials.
+
+Чтобы вернуть удалённые локальные/портфолио-данные к детерминированному seed,
+используйте только точечную команду с явным подтверждением:
+
+```powershell
+$env:ALLOW_PORTFOLIO_RESET = 'true'
+$env:PORTFOLIO_RESET_CONFIRMATION = 'RESET_FEM_PORTFOLIO_SEED_20260821'
+pnpm portfolio:reset
+pnpm prisma:seed
+```
+
+Скрипт разрешает только базу с именем `fem_showcase`, не трогает пользователей,
+роли и immutable audit log, отзывает старые сессии и сбрасывает credentials
+портфолио. Для удалённой базы seed дополнительно требует стандартный
+database-bound confirmation token.
+
 ## Первый администратор
 
 Bootstrap выполняется один раз и не перезаписывает существующие credentials.

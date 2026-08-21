@@ -23,6 +23,7 @@ import { useApi } from '../hooks/useApi';
 import { useListState } from '../hooks/useListState';
 import { useLookups } from '../hooks/useLookups';
 import { formText, formatDateRange } from '../utils/format';
+import { portfolioReadonly } from '../config/portfolio';
 
 export function CompetitionsPage(): ReactNode {
   const state = useListState('startDate');
@@ -122,7 +123,11 @@ export function CompetitionsPage(): ReactNode {
         eyebrow="Реестр / 03"
         title="Соревнования"
         description="События, категории, классы и результаты в одном рабочем контуре."
-        action={<Button onClick={() => setDrawerOpen(true)}>Добавить соревнование</Button>}
+        action={
+          portfolioReadonly ? undefined : (
+            <Button onClick={() => setDrawerOpen(true)}>Добавить соревнование</Button>
+          )
+        }
       />
       <FilterBar onReset={state.reset}>
         <FilterControl label="Поиск">
@@ -194,70 +199,72 @@ export function CompetitionsPage(): ReactNode {
           <Pagination meta={competitions.data.meta} onPage={(page) => state.set({ page })} />
         </>
       ) : null}
-      <Drawer
-        open={drawerOpen}
-        title="Новое соревнование"
-        description="Информационное событие без заявок и регистрации участников."
-        onClose={() => setDrawerOpen(false)}
-      >
-        <FormFeedback error={formError} />
-        <form className="form-grid" onSubmit={(event) => void create(event)}>
-          <FormField label="Название" htmlFor="competition-title">
-            <input id="competition-title" name="title" maxLength={240} required />
-          </FormField>
-          <FormField label="Slug" htmlFor="competition-slug" hint="Латиница, цифры и дефисы">
-            <input
-              id="competition-slug"
-              name="slug"
-              maxLength={240}
-              pattern="[a-z0-9]+(?:-[a-z0-9]+)*"
-              required
-            />
-          </FormField>
-          <div className="form-row">
-            <FormField label="Дата начала" htmlFor="competition-start">
-              <input id="competition-start" name="startDate" type="date" required />
+      {!portfolioReadonly ? (
+        <Drawer
+          open={drawerOpen}
+          title="Новое соревнование"
+          description="Информационное событие без заявок и регистрации участников."
+          onClose={() => setDrawerOpen(false)}
+        >
+          <FormFeedback error={formError} />
+          <form className="form-grid" onSubmit={(event) => void create(event)}>
+            <FormField label="Название" htmlFor="competition-title">
+              <input id="competition-title" name="title" maxLength={240} required />
             </FormField>
-            <FormField label="Дата окончания" htmlFor="competition-end">
-              <input id="competition-end" name="endDate" type="date" required />
+            <FormField label="Slug" htmlFor="competition-slug" hint="Латиница, цифры и дефисы">
+              <input
+                id="competition-slug"
+                name="slug"
+                maxLength={240}
+                pattern="[a-z0-9]+(?:-[a-z0-9]+)*"
+                required
+              />
             </FormField>
-          </div>
-          <FormField label="Населённый пункт" htmlFor="competition-location">
-            <input id="competition-location" name="location" maxLength={240} />
-          </FormField>
-          <FormField label="Площадка" htmlFor="competition-venue">
-            <input id="competition-venue" name="venue" maxLength={240} />
-          </FormField>
-          <FormField label="Страна" htmlFor="competition-country">
-            <select id="competition-country" name="countryId">
-              <option value="">Не указана</option>
-              {lookups.data?.countries.map((country) => (
-                <option key={country.id} value={country.id}>
-                  {country.name}
-                </option>
-              ))}
-            </select>
-          </FormField>
-          <FormField label="Организатор" htmlFor="competition-organizer">
-            <input id="competition-organizer" name="organizerName" maxLength={240} />
-          </FormField>
-          <FormField label="Статус" htmlFor="competition-status">
-            <select id="competition-status" name="status" defaultValue="ACTIVE">
-              <option value="ACTIVE">ACTIVE</option>
-              <option value="DRAFT">DRAFT</option>
-              <option value="INACTIVE">INACTIVE</option>
-            </select>
-          </FormField>
-          <div className="form-actions">
-            <Button type="button" variant="secondary" onClick={() => setDrawerOpen(false)}>
-              Отмена
-            </Button>
-            <Button type="submit" busy={saving}>
-              Создать
-            </Button>
-          </div>
-        </form>
-      </Drawer>
+            <div className="form-row">
+              <FormField label="Дата начала" htmlFor="competition-start">
+                <input id="competition-start" name="startDate" type="date" required />
+              </FormField>
+              <FormField label="Дата окончания" htmlFor="competition-end">
+                <input id="competition-end" name="endDate" type="date" required />
+              </FormField>
+            </div>
+            <FormField label="Населённый пункт" htmlFor="competition-location">
+              <input id="competition-location" name="location" maxLength={240} />
+            </FormField>
+            <FormField label="Площадка" htmlFor="competition-venue">
+              <input id="competition-venue" name="venue" maxLength={240} />
+            </FormField>
+            <FormField label="Страна" htmlFor="competition-country">
+              <select id="competition-country" name="countryId">
+                <option value="">Не указана</option>
+                {lookups.data?.countries.map((country) => (
+                  <option key={country.id} value={country.id}>
+                    {country.name}
+                  </option>
+                ))}
+              </select>
+            </FormField>
+            <FormField label="Организатор" htmlFor="competition-organizer">
+              <input id="competition-organizer" name="organizerName" maxLength={240} />
+            </FormField>
+            <FormField label="Статус" htmlFor="competition-status">
+              <select id="competition-status" name="status" defaultValue="ACTIVE">
+                <option value="ACTIVE">ACTIVE</option>
+                <option value="DRAFT">DRAFT</option>
+                <option value="INACTIVE">INACTIVE</option>
+              </select>
+            </FormField>
+            <div className="form-actions">
+              <Button type="button" variant="secondary" onClick={() => setDrawerOpen(false)}>
+                Отмена
+              </Button>
+              <Button type="submit" busy={saving}>
+                Создать
+              </Button>
+            </div>
+          </form>
+        </Drawer>
+      ) : null}
     </>
   );
 }

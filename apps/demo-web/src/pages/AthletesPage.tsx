@@ -24,6 +24,7 @@ import { useApi } from '../hooks/useApi';
 import { useListState } from '../hooks/useListState';
 import { useLookups } from '../hooks/useLookups';
 import { formText, formatDate } from '../utils/format';
+import { portfolioReadonly } from '../config/portfolio';
 
 const statuses: readonly RecordStatus[] = ['ACTIVE', 'DRAFT', 'INACTIVE'];
 
@@ -123,7 +124,11 @@ export function AthletesPage(): ReactNode {
         eyebrow="Реестр / 01"
         title="Спортсмены"
         description="Единый список спортсменов, клубов и связанных спортивных данных."
-        action={<Button onClick={() => setDrawerOpen(true)}>Добавить спортсмена</Button>}
+        action={
+          portfolioReadonly ? undefined : (
+            <Button onClick={() => setDrawerOpen(true)}>Добавить спортсмена</Button>
+          )
+        }
       />
       <FilterBar onReset={state.reset}>
         <FilterControl label="Поиск">
@@ -194,52 +199,54 @@ export function AthletesPage(): ReactNode {
           <Pagination meta={athletes.data.meta} onPage={(page) => state.set({ page })} />
         </>
       ) : null}
-      <Drawer
-        open={drawerOpen}
-        title="Новый спортсмен"
-        description="Заполните основные данные спортсмена."
-        onClose={() => setDrawerOpen(false)}
-      >
-        <FormFeedback error={formError} />
-        <form className="form-grid" onSubmit={(event) => void create(event)}>
-          <FormField label="Имя" htmlFor="athlete-first-name">
-            <input id="athlete-first-name" name="firstName" maxLength={120} required />
-          </FormField>
-          <FormField label="Фамилия" htmlFor="athlete-last-name">
-            <input id="athlete-last-name" name="lastName" maxLength={120} required />
-          </FormField>
-          <FormField label="Отображаемое имя" htmlFor="athlete-display-name">
-            <input id="athlete-display-name" name="displayName" maxLength={240} required />
-          </FormField>
-          <FormField label="Страна" htmlFor="athlete-country">
-            <select id="athlete-country" name="countryId">
-              <option value="">Не указана</option>
-              {lookups.data?.countries.map((country) => (
-                <option key={country.id} value={country.id}>
-                  {country.name}
-                </option>
-              ))}
-            </select>
-          </FormField>
-          <FormField label="Статус" htmlFor="athlete-status">
-            <select id="athlete-status" name="status" defaultValue="ACTIVE">
-              {statuses.map((status) => (
-                <option key={status} value={status}>
-                  {status}
-                </option>
-              ))}
-            </select>
-          </FormField>
-          <div className="form-actions">
-            <Button type="button" variant="secondary" onClick={() => setDrawerOpen(false)}>
-              Отмена
-            </Button>
-            <Button type="submit" busy={saving}>
-              Создать
-            </Button>
-          </div>
-        </form>
-      </Drawer>
+      {!portfolioReadonly ? (
+        <Drawer
+          open={drawerOpen}
+          title="Новый спортсмен"
+          description="Заполните основные данные спортсмена."
+          onClose={() => setDrawerOpen(false)}
+        >
+          <FormFeedback error={formError} />
+          <form className="form-grid" onSubmit={(event) => void create(event)}>
+            <FormField label="Имя" htmlFor="athlete-first-name">
+              <input id="athlete-first-name" name="firstName" maxLength={120} required />
+            </FormField>
+            <FormField label="Фамилия" htmlFor="athlete-last-name">
+              <input id="athlete-last-name" name="lastName" maxLength={120} required />
+            </FormField>
+            <FormField label="Отображаемое имя" htmlFor="athlete-display-name">
+              <input id="athlete-display-name" name="displayName" maxLength={240} required />
+            </FormField>
+            <FormField label="Страна" htmlFor="athlete-country">
+              <select id="athlete-country" name="countryId">
+                <option value="">Не указана</option>
+                {lookups.data?.countries.map((country) => (
+                  <option key={country.id} value={country.id}>
+                    {country.name}
+                  </option>
+                ))}
+              </select>
+            </FormField>
+            <FormField label="Статус" htmlFor="athlete-status">
+              <select id="athlete-status" name="status" defaultValue="ACTIVE">
+                {statuses.map((status) => (
+                  <option key={status} value={status}>
+                    {status}
+                  </option>
+                ))}
+              </select>
+            </FormField>
+            <div className="form-actions">
+              <Button type="button" variant="secondary" onClick={() => setDrawerOpen(false)}>
+                Отмена
+              </Button>
+              <Button type="submit" busy={saving}>
+                Создать
+              </Button>
+            </div>
+          </form>
+        </Drawer>
+      ) : null}
     </>
   );
 }

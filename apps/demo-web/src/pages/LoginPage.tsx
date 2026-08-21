@@ -4,6 +4,11 @@ import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { ApiError } from '../api/client';
 import { useAuth } from '../auth/AuthProvider';
 import { formText } from '../utils/format';
+import {
+  portfolioDemoPassword,
+  portfolioDemoUsername,
+  portfolioReadonly,
+} from '../config/portfolio';
 
 function BrandMark(): ReactNode {
   return (
@@ -74,7 +79,7 @@ export function LoginPage(): ReactNode {
     const password = formText(form, 'password');
     const otp = formText(form, 'otp').trim();
     try {
-      await login({ email, password, otp });
+      await login({ email, password, ...(otp ? { otp } : {}) });
       const navigationState: unknown = location.state;
       const from =
         typeof navigationState === 'object' &&
@@ -185,8 +190,17 @@ export function LoginPage(): ReactNode {
                 </span>
               </div>
               <p className="fem-login__form-copy">
-                Введите email, пароль и актуальный код приложения 2FA.
+                {portfolioReadonly
+                  ? 'Демо-доступ открыт только для просмотра данных.'
+                  : 'Введите email, пароль и актуальный код приложения 2FA.'}
               </p>
+              {portfolioReadonly ? (
+                <div className="fem-login__demo-credentials" role="note">
+                  <strong>Данные для просмотра</strong>
+                  <span>Логин: {portfolioDemoUsername}</span>
+                  <span>Пароль: {portfolioDemoPassword}</span>
+                </div>
+              ) : null}
 
               {error ? (
                 <div className="fem-login__error" role="alert" aria-live="assertive">
@@ -201,7 +215,7 @@ export function LoginPage(): ReactNode {
               <form onSubmit={(event) => void handleSubmit(event)}>
                 <fieldset className="fem-login__fieldset" disabled={busy}>
                   <div className="fem-login__field">
-                    <label htmlFor="login-email">Email</label>
+                    <label htmlFor="login-email">{portfolioReadonly ? 'Логин' : 'Email'}</label>
                     <span className="fem-login__input">
                       <i>
                         <EnvelopeIcon />
@@ -209,40 +223,42 @@ export function LoginPage(): ReactNode {
                       <input
                         id="login-email"
                         name="email"
-                        type="email"
+                        type={portfolioReadonly ? 'text' : 'email'}
                         autoComplete="username"
-                        placeholder="admin@fem.md"
+                        placeholder={portfolioReadonly ? portfolioDemoUsername : 'admin@fem.md'}
                         autoFocus
                         required
                       />
                     </span>
                   </div>
 
-                  <div className="fem-login__field">
-                    <label htmlFor="login-password">Пароль</label>
-                    <span className="fem-login__input">
-                      <i>
-                        <LockIcon />
-                      </i>
-                      <input
-                        id="login-password"
-                        name="password"
-                        type={showPassword ? 'text' : 'password'}
-                        autoComplete="current-password"
-                        placeholder="Введите пароль"
-                        required
-                      />
-                      <button
-                        className="fem-login__reveal"
-                        type="button"
-                        aria-label={showPassword ? 'Скрыть пароль' : 'Показать пароль'}
-                        aria-pressed={showPassword}
-                        onClick={() => setShowPassword((current) => !current)}
-                      >
-                        <EyeIcon hidden={showPassword} />
-                      </button>
-                    </span>
-                  </div>
+                  {!portfolioReadonly ? (
+                    <div className="fem-login__field">
+                      <label htmlFor="login-password">Пароль</label>
+                      <span className="fem-login__input">
+                        <i>
+                          <LockIcon />
+                        </i>
+                        <input
+                          id="login-password"
+                          name="password"
+                          type={showPassword ? 'text' : 'password'}
+                          autoComplete="current-password"
+                          placeholder="Введите пароль"
+                          required
+                        />
+                        <button
+                          className="fem-login__reveal"
+                          type="button"
+                          aria-label={showPassword ? 'Скрыть пароль' : 'Показать пароль'}
+                          aria-pressed={showPassword}
+                          onClick={() => setShowPassword((current) => !current)}
+                        >
+                          <EyeIcon hidden={showPassword} />
+                        </button>
+                      </span>
+                    </div>
+                  ) : null}
 
                   <div className="fem-login__field">
                     <label className="fem-login__field-label" htmlFor="login-otp">

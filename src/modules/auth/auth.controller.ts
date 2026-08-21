@@ -45,7 +45,7 @@ export class AuthController {
 
   @Post('login')
   @HttpCode(200)
-  @ApiOperation({ summary: 'Create an ADMIN session using password and a second factor' })
+  @ApiOperation({ summary: 'Create an ADMIN session; portfolio mode uses username and password only' })
   @ApiOkResponse({ description: 'Session created; CSRF token is returned once in the body' })
   @ApiTooManyRequestsResponse({ description: 'Too many authentication attempts' })
   async login(

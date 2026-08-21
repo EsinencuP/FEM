@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 
 import { useAuth } from '../auth/AuthProvider';
 import { Button } from './Button';
+import { portfolioReadonly } from '../config/portfolio';
 
 const navigation = [
   { to: '/athletes', label: 'Спортсмены' },
@@ -50,6 +51,11 @@ export function AppShell(): ReactNode {
             Выйти
           </Button>
         </header>
+        {portfolioReadonly ? (
+          <div className="portfolio-readonly-banner" role="status">
+            Портфолио-режим: данные доступны только для просмотра.
+          </div>
+        ) : null}
         <main className="main-content">
           <Outlet />
         </main>

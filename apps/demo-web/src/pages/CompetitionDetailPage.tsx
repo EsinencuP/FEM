@@ -36,6 +36,7 @@ import {
   formatDateRange,
   optionalNumber,
 } from '../utils/format';
+import { portfolioReadonly } from '../config/portfolio';
 
 type DrawerState<T> = { readonly open: false } | { readonly open: true; readonly item?: T };
 
@@ -122,17 +123,18 @@ export function CompetitionDetailPage(): ReactNode {
       {
         key: 'edit',
         label: 'Действие',
-        render: (item) => (
-          <Button
-            variant="quiet"
-            onClick={() => {
-              setFormError(null);
-              setResultEditor({ open: true, item });
-            }}
-          >
-            Изменить
-          </Button>
-        ),
+        render: (item) =>
+          portfolioReadonly ? null : (
+            <Button
+              variant="quiet"
+              onClick={() => {
+                setFormError(null);
+                setResultEditor({ open: true, item });
+              }}
+            >
+              Изменить
+            </Button>
+          ),
       },
     ],
     [],
@@ -272,14 +274,16 @@ export function CompetitionDetailPage(): ReactNode {
         title={item.title}
         description={`${formatDateRange(item.startDate, item.endDate)} · ${item.venue ?? item.location ?? 'место не указано'}`}
         action={
-          <Button
-            onClick={() => {
-              setFormError(null);
-              setCompetitionEditor(true);
-            }}
-          >
-            Редактировать
-          </Button>
+          portfolioReadonly ? undefined : (
+            <Button
+              onClick={() => {
+                setFormError(null);
+                setCompetitionEditor(true);
+              }}
+            >
+              Редактировать
+            </Button>
+          )
         }
       />
       <section className="competition-summary">
@@ -356,23 +360,27 @@ export function CompetitionDetailPage(): ReactNode {
                   </p>
                 </div>
                 <div className="button-cluster">
-                  <Button
-                    variant="secondary"
-                    onClick={() => {
-                      setFormError(null);
-                      setClassEditor({ open: true, item: selectedClass });
-                    }}
-                  >
-                    Изменить класс
-                  </Button>
-                  <Button
-                    onClick={() => {
-                      setFormError(null);
-                      setResultEditor({ open: true });
-                    }}
-                  >
-                    Добавить результат
-                  </Button>
+                  {!portfolioReadonly ? (
+                    <Button
+                      variant="secondary"
+                      onClick={() => {
+                        setFormError(null);
+                        setClassEditor({ open: true, item: selectedClass });
+                      }}
+                    >
+                      Изменить класс
+                    </Button>
+                  ) : null}
+                  {!portfolioReadonly ? (
+                    <Button
+                      onClick={() => {
+                        setFormError(null);
+                        setResultEditor({ open: true });
+                      }}
+                    >
+                      Добавить результат
+                    </Button>
+                  ) : null}
                 </div>
               </div>
               {results.loading ? <LoadingState /> : null}
@@ -392,202 +400,101 @@ export function CompetitionDetailPage(): ReactNode {
           )}
         </div>
       </section>
-      <Drawer
-        open={competitionEditor}
-        title="Редактировать соревнование"
-        description="Измените основные параметры соревнования."
-        onClose={() => setCompetitionEditor(false)}
-      >
-        <FormFeedback error={formError} />
-        <form className="form-grid" onSubmit={(event) => void saveCompetition(event)}>
-          <FormField label="Название" htmlFor="edit-competition-title">
-            <input
-              id="edit-competition-title"
-              name="title"
-              defaultValue={item.title}
-              maxLength={240}
-              required
-            />
-          </FormField>
-          <FormField label="Slug" htmlFor="edit-competition-slug">
-            <input
-              id="edit-competition-slug"
-              name="slug"
-              defaultValue={item.slug}
-              pattern="[a-z0-9]+(?:-[a-z0-9]+)*"
-              maxLength={240}
-              required
-            />
-          </FormField>
-          <div className="form-row">
-            <FormField label="Дата начала" htmlFor="edit-competition-start">
+      {!portfolioReadonly ? (
+        <Drawer
+          open={competitionEditor}
+          title="Редактировать соревнование"
+          description="Измените основные параметры соревнования."
+          onClose={() => setCompetitionEditor(false)}
+        >
+          <FormFeedback error={formError} />
+          <form className="form-grid" onSubmit={(event) => void saveCompetition(event)}>
+            <FormField label="Название" htmlFor="edit-competition-title">
               <input
-                id="edit-competition-start"
-                name="startDate"
-                type="date"
-                defaultValue={item.startDate.slice(0, 10)}
-                required
-              />
-            </FormField>
-            <FormField label="Дата окончания" htmlFor="edit-competition-end">
-              <input
-                id="edit-competition-end"
-                name="endDate"
-                type="date"
-                defaultValue={item.endDate.slice(0, 10)}
-                required
-              />
-            </FormField>
-          </div>
-          <FormField label="Населённый пункт" htmlFor="edit-competition-location">
-            <input
-              id="edit-competition-location"
-              name="location"
-              defaultValue={item.location ?? ''}
-              maxLength={240}
-            />
-          </FormField>
-          <FormField label="Площадка" htmlFor="edit-competition-venue">
-            <input
-              id="edit-competition-venue"
-              name="venue"
-              defaultValue={item.venue ?? ''}
-              maxLength={240}
-            />
-          </FormField>
-          <FormField label="Страна" htmlFor="edit-competition-country">
-            <select
-              id="edit-competition-country"
-              name="countryId"
-              defaultValue={item.countryId ?? ''}
-            >
-              <option value="">Не указана</option>
-              {lookups.data?.countries.map((country) => (
-                <option key={country.id} value={country.id}>
-                  {country.name}
-                </option>
-              ))}
-            </select>
-          </FormField>
-          <FormField label="Организатор" htmlFor="edit-competition-organizer">
-            <input
-              id="edit-competition-organizer"
-              name="organizerName"
-              defaultValue={item.organizerName ?? ''}
-              maxLength={240}
-            />
-          </FormField>
-          <FormField label="Статус" htmlFor="edit-competition-status">
-            <select id="edit-competition-status" name="status" defaultValue={item.status}>
-              <option value="ACTIVE">ACTIVE</option>
-              <option value="DRAFT">DRAFT</option>
-              <option value="INACTIVE">INACTIVE</option>
-            </select>
-          </FormField>
-          <div className="form-actions">
-            <Button type="button" variant="secondary" onClick={() => setCompetitionEditor(false)}>
-              Отмена
-            </Button>
-            <Button type="submit" busy={saving}>
-              Сохранить
-            </Button>
-          </div>
-        </form>
-      </Drawer>
-
-      <Drawer
-        open={classEditor.open}
-        title={classEditor.open && classEditor.item ? 'Редактировать класс' : 'Новый класс'}
-        onClose={() => setClassEditor({ open: false })}
-      >
-        <FormFeedback error={formError} />
-        {classEditor.open ? (
-          <form className="form-grid" onSubmit={(event) => void saveClass(event)}>
-            <FormField label="Название" htmlFor="class-title">
-              <input
-                id="class-title"
+                id="edit-competition-title"
                 name="title"
-                defaultValue={classEditor.item?.title ?? ''}
+                defaultValue={item.title}
                 maxLength={240}
                 required
               />
             </FormField>
-            <FormField label="Дисциплина" htmlFor="class-discipline">
-              <select
-                id="class-discipline"
-                name="disciplineId"
-                defaultValue={classEditor.item?.disciplineId ?? ''}
+            <FormField label="Slug" htmlFor="edit-competition-slug">
+              <input
+                id="edit-competition-slug"
+                name="slug"
+                defaultValue={item.slug}
+                pattern="[a-z0-9]+(?:-[a-z0-9]+)*"
+                maxLength={240}
                 required
+              />
+            </FormField>
+            <div className="form-row">
+              <FormField label="Дата начала" htmlFor="edit-competition-start">
+                <input
+                  id="edit-competition-start"
+                  name="startDate"
+                  type="date"
+                  defaultValue={item.startDate.slice(0, 10)}
+                  required
+                />
+              </FormField>
+              <FormField label="Дата окончания" htmlFor="edit-competition-end">
+                <input
+                  id="edit-competition-end"
+                  name="endDate"
+                  type="date"
+                  defaultValue={item.endDate.slice(0, 10)}
+                  required
+                />
+              </FormField>
+            </div>
+            <FormField label="Населённый пункт" htmlFor="edit-competition-location">
+              <input
+                id="edit-competition-location"
+                name="location"
+                defaultValue={item.location ?? ''}
+                maxLength={240}
+              />
+            </FormField>
+            <FormField label="Площадка" htmlFor="edit-competition-venue">
+              <input
+                id="edit-competition-venue"
+                name="venue"
+                defaultValue={item.venue ?? ''}
+                maxLength={240}
+              />
+            </FormField>
+            <FormField label="Страна" htmlFor="edit-competition-country">
+              <select
+                id="edit-competition-country"
+                name="countryId"
+                defaultValue={item.countryId ?? ''}
               >
-                <option value="" disabled>
-                  Выберите дисциплину
-                </option>
-                {lookups.data?.disciplines.map((discipline) => (
-                  <option key={discipline.id} value={discipline.id}>
-                    {discipline.name}
+                <option value="">Не указана</option>
+                {lookups.data?.countries.map((country) => (
+                  <option key={country.id} value={country.id}>
+                    {country.name}
                   </option>
                 ))}
               </select>
             </FormField>
-            <FormField label="Категория" htmlFor="class-category">
-              <select
-                id="class-category"
-                name="category"
-                defaultValue={classEditor.item?.category ?? 'Открытый класс'}
-              >
-                <option>Открытый класс</option>
-                <option>Юниоры</option>
-                <option>Любители</option>
-                <option>Молодые лошади</option>
-              </select>
-            </FormField>
-            <FormField label="Уровень" htmlFor="class-level">
+            <FormField label="Организатор" htmlFor="edit-competition-organizer">
               <input
-                id="class-level"
-                name="level"
-                defaultValue={classEditor.item?.level ?? ''}
-                maxLength={160}
+                id="edit-competition-organizer"
+                name="organizerName"
+                defaultValue={item.organizerName ?? ''}
+                maxLength={240}
               />
             </FormField>
-            <FormField label="Дата класса" htmlFor="class-date">
-              <input
-                id="class-date"
-                name="competitionDate"
-                type="date"
-                min={item.startDate.slice(0, 10)}
-                max={item.endDate.slice(0, 10)}
-                defaultValue={
-                  classEditor.item?.competitionDate?.slice(0, 10) ?? item.startDate.slice(0, 10)
-                }
-              />
-            </FormField>
-            <FormField label="Порядок" htmlFor="class-sort">
-              <input
-                id="class-sort"
-                name="sortOrder"
-                type="number"
-                min={0}
-                max={100000}
-                defaultValue={classEditor.item?.sortOrder ?? classes.data?.data.length ?? 0}
-              />
-            </FormField>
-            <FormField label="Статус" htmlFor="class-status">
-              <select
-                id="class-status"
-                name="status"
-                defaultValue={classEditor.item?.status ?? 'ACTIVE'}
-              >
+            <FormField label="Статус" htmlFor="edit-competition-status">
+              <select id="edit-competition-status" name="status" defaultValue={item.status}>
                 <option value="ACTIVE">ACTIVE</option>
                 <option value="DRAFT">DRAFT</option>
                 <option value="INACTIVE">INACTIVE</option>
               </select>
             </FormField>
             <div className="form-actions">
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={() => setClassEditor({ open: false })}
-              >
+              <Button type="button" variant="secondary" onClick={() => setCompetitionEditor(false)}>
                 Отмена
               </Button>
               <Button type="submit" busy={saving}>
@@ -595,119 +502,226 @@ export function CompetitionDetailPage(): ReactNode {
               </Button>
             </div>
           </form>
-        ) : null}
-      </Drawer>
+        </Drawer>
+      ) : null}
 
-      <Drawer
-        open={resultEditor.open}
-        title={
-          resultEditor.open && resultEditor.item ? 'Редактировать результат' : 'Новый результат'
-        }
-        description={selectedClass?.title ?? 'Выбранный класс'}
-        onClose={() => setResultEditor({ open: false })}
-      >
-        <FormFeedback error={formError} />
-        {resultEditor.open ? (
-          <form className="form-grid" onSubmit={(event) => void saveResult(event)}>
-            <FormField label="Спортсмен" htmlFor="result-athlete">
-              <select
-                id="result-athlete"
-                name="athleteId"
-                defaultValue={resultEditor.item?.athleteId ?? ''}
-                required
-              >
-                <option value="" disabled>
-                  Выберите спортсмена
-                </option>
-                {people.data?.athletes.map((athleteItem) => (
-                  <option key={athleteItem.id} value={athleteItem.id}>
-                    {athleteItem.displayName}
+      {!portfolioReadonly ? (
+        <Drawer
+          open={classEditor.open}
+          title={classEditor.open && classEditor.item ? 'Редактировать класс' : 'Новый класс'}
+          onClose={() => setClassEditor({ open: false })}
+        >
+          <FormFeedback error={formError} />
+          {classEditor.open ? (
+            <form className="form-grid" onSubmit={(event) => void saveClass(event)}>
+              <FormField label="Название" htmlFor="class-title">
+                <input
+                  id="class-title"
+                  name="title"
+                  defaultValue={classEditor.item?.title ?? ''}
+                  maxLength={240}
+                  required
+                />
+              </FormField>
+              <FormField label="Дисциплина" htmlFor="class-discipline">
+                <select
+                  id="class-discipline"
+                  name="disciplineId"
+                  defaultValue={classEditor.item?.disciplineId ?? ''}
+                  required
+                >
+                  <option value="" disabled>
+                    Выберите дисциплину
                   </option>
-                ))}
-              </select>
-            </FormField>
-            <FormField label="Лошадь" htmlFor="result-horse">
-              <select
-                id="result-horse"
-                name="horseId"
-                defaultValue={resultEditor.item?.horseId ?? ''}
-                required
-              >
-                <option value="" disabled>
-                  Выберите лошадь
-                </option>
-                {people.data?.horses.map((horseItem) => (
-                  <option key={horseItem.id} value={horseItem.id}>
-                    {horseItem.displayName}
+                  {lookups.data?.disciplines.map((discipline) => (
+                    <option key={discipline.id} value={discipline.id}>
+                      {discipline.name}
+                    </option>
+                  ))}
+                </select>
+              </FormField>
+              <FormField label="Категория" htmlFor="class-category">
+                <select
+                  id="class-category"
+                  name="category"
+                  defaultValue={classEditor.item?.category ?? 'Открытый класс'}
+                >
+                  <option>Открытый класс</option>
+                  <option>Юниоры</option>
+                  <option>Любители</option>
+                  <option>Молодые лошади</option>
+                </select>
+              </FormField>
+              <FormField label="Уровень" htmlFor="class-level">
+                <input
+                  id="class-level"
+                  name="level"
+                  defaultValue={classEditor.item?.level ?? ''}
+                  maxLength={160}
+                />
+              </FormField>
+              <FormField label="Дата класса" htmlFor="class-date">
+                <input
+                  id="class-date"
+                  name="competitionDate"
+                  type="date"
+                  min={item.startDate.slice(0, 10)}
+                  max={item.endDate.slice(0, 10)}
+                  defaultValue={
+                    classEditor.item?.competitionDate?.slice(0, 10) ?? item.startDate.slice(0, 10)
+                  }
+                />
+              </FormField>
+              <FormField label="Порядок" htmlFor="class-sort">
+                <input
+                  id="class-sort"
+                  name="sortOrder"
+                  type="number"
+                  min={0}
+                  max={100000}
+                  defaultValue={classEditor.item?.sortOrder ?? classes.data?.data.length ?? 0}
+                />
+              </FormField>
+              <FormField label="Статус" htmlFor="class-status">
+                <select
+                  id="class-status"
+                  name="status"
+                  defaultValue={classEditor.item?.status ?? 'ACTIVE'}
+                >
+                  <option value="ACTIVE">ACTIVE</option>
+                  <option value="DRAFT">DRAFT</option>
+                  <option value="INACTIVE">INACTIVE</option>
+                </select>
+              </FormField>
+              <div className="form-actions">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => setClassEditor({ open: false })}
+                >
+                  Отмена
+                </Button>
+                <Button type="submit" busy={saving}>
+                  Сохранить
+                </Button>
+              </div>
+            </form>
+          ) : null}
+        </Drawer>
+      ) : null}
+
+      {!portfolioReadonly ? (
+        <Drawer
+          open={resultEditor.open}
+          title={
+            resultEditor.open && resultEditor.item ? 'Редактировать результат' : 'Новый результат'
+          }
+          description={selectedClass?.title ?? 'Выбранный класс'}
+          onClose={() => setResultEditor({ open: false })}
+        >
+          <FormFeedback error={formError} />
+          {resultEditor.open ? (
+            <form className="form-grid" onSubmit={(event) => void saveResult(event)}>
+              <FormField label="Спортсмен" htmlFor="result-athlete">
+                <select
+                  id="result-athlete"
+                  name="athleteId"
+                  defaultValue={resultEditor.item?.athleteId ?? ''}
+                  required
+                >
+                  <option value="" disabled>
+                    Выберите спортсмена
                   </option>
-                ))}
-              </select>
-            </FormField>
-            <div className="form-row">
-              <FormField label="Место" htmlFor="result-rank">
-                <input
-                  id="result-rank"
-                  name="rank"
-                  type="number"
-                  min={1}
-                  defaultValue={resultEditor.item?.rank ?? ''}
-                />
+                  {people.data?.athletes.map((athleteItem) => (
+                    <option key={athleteItem.id} value={athleteItem.id}>
+                      {athleteItem.displayName}
+                    </option>
+                  ))}
+                </select>
               </FormField>
-              <FormField label="Отображаемый результат" htmlFor="result-display">
-                <input
-                  id="result-display"
-                  name="resultDisplay"
-                  defaultValue={resultEditor.item?.resultDisplay ?? ''}
-                  maxLength={500}
-                />
+              <FormField label="Лошадь" htmlFor="result-horse">
+                <select
+                  id="result-horse"
+                  name="horseId"
+                  defaultValue={resultEditor.item?.horseId ?? ''}
+                  required
+                >
+                  <option value="" disabled>
+                    Выберите лошадь
+                  </option>
+                  {people.data?.horses.map((horseItem) => (
+                    <option key={horseItem.id} value={horseItem.id}>
+                      {horseItem.displayName}
+                    </option>
+                  ))}
+                </select>
               </FormField>
-            </div>
-            <div className="form-row">
-              <FormField label="Баллы" htmlFor="result-points">
+              <div className="form-row">
+                <FormField label="Место" htmlFor="result-rank">
+                  <input
+                    id="result-rank"
+                    name="rank"
+                    type="number"
+                    min={1}
+                    defaultValue={resultEditor.item?.rank ?? ''}
+                  />
+                </FormField>
+                <FormField label="Отображаемый результат" htmlFor="result-display">
+                  <input
+                    id="result-display"
+                    name="resultDisplay"
+                    defaultValue={resultEditor.item?.resultDisplay ?? ''}
+                    maxLength={500}
+                  />
+                </FormField>
+              </div>
+              <div className="form-row">
+                <FormField label="Баллы" htmlFor="result-points">
+                  <input
+                    id="result-points"
+                    name="points"
+                    type="number"
+                    step="0.001"
+                    defaultValue={resultEditor.item?.points ?? ''}
+                  />
+                </FormField>
+                <FormField label="Время, сек." htmlFor="result-time">
+                  <input
+                    id="result-time"
+                    name="timeSeconds"
+                    type="number"
+                    min={0}
+                    step="0.001"
+                    defaultValue={resultEditor.item?.timeSeconds ?? ''}
+                  />
+                </FormField>
+              </div>
+              <FormField label="Штрафы" htmlFor="result-penalties">
                 <input
-                  id="result-points"
-                  name="points"
-                  type="number"
-                  step="0.001"
-                  defaultValue={resultEditor.item?.points ?? ''}
-                />
-              </FormField>
-              <FormField label="Время, сек." htmlFor="result-time">
-                <input
-                  id="result-time"
-                  name="timeSeconds"
+                  id="result-penalties"
+                  name="penalties"
                   type="number"
                   min={0}
                   step="0.001"
-                  defaultValue={resultEditor.item?.timeSeconds ?? ''}
+                  defaultValue={resultEditor.item?.penalties ?? ''}
                 />
               </FormField>
-            </div>
-            <FormField label="Штрафы" htmlFor="result-penalties">
-              <input
-                id="result-penalties"
-                name="penalties"
-                type="number"
-                min={0}
-                step="0.001"
-                defaultValue={resultEditor.item?.penalties ?? ''}
-              />
-            </FormField>
-            <div className="form-actions">
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={() => setResultEditor({ open: false })}
-              >
-                Отмена
-              </Button>
-              <Button type="submit" busy={saving}>
-                Сохранить
-              </Button>
-            </div>
-          </form>
-        ) : null}
-      </Drawer>
+              <div className="form-actions">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => setResultEditor({ open: false })}
+                >
+                  Отмена
+                </Button>
+                <Button type="submit" busy={saving}>
+                  Сохранить
+                </Button>
+              </div>
+            </form>
+          ) : null}
+        </Drawer>
+      ) : null}
     </>
   );
 }

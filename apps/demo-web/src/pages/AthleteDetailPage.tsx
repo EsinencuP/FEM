@@ -19,6 +19,7 @@ import { ErrorState, LoadingState } from '../components/PageState';
 import { useApi } from '../hooks/useApi';
 import { useLookups } from '../hooks/useLookups';
 import { displayValue, formText, formatDate } from '../utils/format';
+import { portfolioReadonly } from '../config/portfolio';
 
 export function AthleteDetailPage(): ReactNode {
   const { id = '' } = useParams();
@@ -79,7 +80,11 @@ export function AthleteDetailPage(): ReactNode {
         eyebrow="Карточка спортсмена"
         title={item.displayName}
         description={`${item.country?.name ?? 'Страна не указана'} · обновлено ${formatDate(item.updatedAt)}`}
-        action={<Button onClick={() => setEditing(true)}>Редактировать</Button>}
+        action={
+          portfolioReadonly ? undefined : (
+            <Button onClick={() => setEditing(true)}>Редактировать</Button>
+          )
+        }
       />
       <section className="detail-grid">
         <article className="detail-card detail-card--primary">
@@ -191,63 +196,69 @@ export function AthleteDetailPage(): ReactNode {
           )}
         </article>
       </section>
-      <Drawer open={editing} title="Редактировать спортсмена" onClose={() => setEditing(false)}>
-        <FormFeedback error={formError} />
-        <form className="form-grid" onSubmit={(event) => void update(event)}>
-          <FormField label="Имя" htmlFor="edit-athlete-first">
-            <input
-              id="edit-athlete-first"
-              name="firstName"
-              defaultValue={item.firstName}
-              maxLength={120}
-              required
-            />
-          </FormField>
-          <FormField label="Фамилия" htmlFor="edit-athlete-last">
-            <input
-              id="edit-athlete-last"
-              name="lastName"
-              defaultValue={item.lastName}
-              maxLength={120}
-              required
-            />
-          </FormField>
-          <FormField label="Отображаемое имя" htmlFor="edit-athlete-display">
-            <input
-              id="edit-athlete-display"
-              name="displayName"
-              defaultValue={item.displayName}
-              maxLength={240}
-              required
-            />
-          </FormField>
-          <FormField label="Страна" htmlFor="edit-athlete-country">
-            <select id="edit-athlete-country" name="countryId" defaultValue={item.countryId ?? ''}>
-              <option value="">Не указана</option>
-              {lookups.data?.countries.map((country) => (
-                <option key={country.id} value={country.id}>
-                  {country.name}
-                </option>
-              ))}
-            </select>
-          </FormField>
-          <FormField label="Статус" htmlFor="edit-athlete-status">
-            <select id="edit-athlete-status" name="status" defaultValue={item.status}>
-              <option value="ACTIVE">ACTIVE</option>
-              <option value="DRAFT">DRAFT</option>
-              <option value="INACTIVE">INACTIVE</option>
-            </select>
-          </FormField>
-          <div className="form-actions">
-            <Button type="button" variant="secondary" onClick={() => setEditing(false)}>
-              Отмена
-            </Button>
-            <Button type="submit" busy={saving}>
-              Сохранить
-            </Button>
-          </div>
-        </form>
-      </Drawer>
+      {!portfolioReadonly ? (
+        <Drawer open={editing} title="Редактировать спортсмена" onClose={() => setEditing(false)}>
+          <FormFeedback error={formError} />
+          <form className="form-grid" onSubmit={(event) => void update(event)}>
+            <FormField label="Имя" htmlFor="edit-athlete-first">
+              <input
+                id="edit-athlete-first"
+                name="firstName"
+                defaultValue={item.firstName}
+                maxLength={120}
+                required
+              />
+            </FormField>
+            <FormField label="Фамилия" htmlFor="edit-athlete-last">
+              <input
+                id="edit-athlete-last"
+                name="lastName"
+                defaultValue={item.lastName}
+                maxLength={120}
+                required
+              />
+            </FormField>
+            <FormField label="Отображаемое имя" htmlFor="edit-athlete-display">
+              <input
+                id="edit-athlete-display"
+                name="displayName"
+                defaultValue={item.displayName}
+                maxLength={240}
+                required
+              />
+            </FormField>
+            <FormField label="Страна" htmlFor="edit-athlete-country">
+              <select
+                id="edit-athlete-country"
+                name="countryId"
+                defaultValue={item.countryId ?? ''}
+              >
+                <option value="">Не указана</option>
+                {lookups.data?.countries.map((country) => (
+                  <option key={country.id} value={country.id}>
+                    {country.name}
+                  </option>
+                ))}
+              </select>
+            </FormField>
+            <FormField label="Статус" htmlFor="edit-athlete-status">
+              <select id="edit-athlete-status" name="status" defaultValue={item.status}>
+                <option value="ACTIVE">ACTIVE</option>
+                <option value="DRAFT">DRAFT</option>
+                <option value="INACTIVE">INACTIVE</option>
+              </select>
+            </FormField>
+            <div className="form-actions">
+              <Button type="button" variant="secondary" onClick={() => setEditing(false)}>
+                Отмена
+              </Button>
+              <Button type="submit" busy={saving}>
+                Сохранить
+              </Button>
+            </div>
+          </form>
+        </Drawer>
+      ) : null}
     </>
   );
 }

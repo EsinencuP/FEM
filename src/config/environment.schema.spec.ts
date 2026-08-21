@@ -38,6 +38,10 @@ describe('environment configuration', () => {
       RATE_LIMIT_FILES_PER_MINUTE: 60,
       RATE_LIMIT_INTEGRATIONS_PER_MINUTE: 300,
       SWAGGER_ENABLED: true,
+      PORTFOLIO_READONLY_MODE: false,
+      PORTFOLIO_DEMO_USERNAME: 'admin1',
+      PORTFOLIO_DEMO_EMAIL: 'admin1@fem.local',
+      PORTFOLIO_DEMO_PASSWORD: '123',
     });
   });
 

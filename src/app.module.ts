@@ -21,6 +21,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { PostgresThrottlerStorage } from './common/security/postgres-throttler-storage';
 import { AuditModule } from './modules/audit/audit.module';
 import { PublicApiModule } from './modules/public-api/public-api.module';
+import { PortfolioReadonlyGuard } from './common/guards/portfolio-readonly.guard';
 
 function requestPath(context: ExecutionContext): string {
   const request = context.switchToHttp().getRequest<{ originalUrl?: unknown }>();
@@ -118,6 +119,7 @@ function isPublicSearchRequest(context: ExecutionContext): boolean {
     PublicApiModule,
   ],
   providers: [
+    { provide: APP_GUARD, useClass: PortfolioReadonlyGuard },
     PostgresThrottlerStorage,
     { provide: ThrottlerStorage, useExisting: PostgresThrottlerStorage },
     { provide: APP_GUARD, useClass: ThrottlerGuard },
