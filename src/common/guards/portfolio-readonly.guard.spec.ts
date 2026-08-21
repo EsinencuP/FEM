@@ -2,9 +2,14 @@ import { ForbiddenException } from '@nestjs/common';
 
 import { PortfolioReadonlyGuard } from './portfolio-readonly.guard';
 
-function context(method: string, originalUrl: string) {
+function context(
+  method: string,
+  originalUrl: string,
+): Parameters<PortfolioReadonlyGuard['canActivate']>[0] {
   return {
-    switchToHttp: () => ({ getRequest: () => ({ method, originalUrl }) }),
+    switchToHttp: (): { getRequest: () => { method: string; originalUrl: string } } => ({
+      getRequest: (): { method: string; originalUrl: string } => ({ method, originalUrl }),
+    }),
   } as never;
 }
 
