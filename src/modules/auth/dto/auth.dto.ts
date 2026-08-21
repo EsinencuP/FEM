@@ -7,8 +7,12 @@ const otpSchema = z.string().regex(/^\d{6}$/, 'otp must contain exactly six digi
 export class LoginDto {
   static readonly schema = z
     .object({
+      // Portfolio mode intentionally accepts the public username in this field.
+      // Normal mode still validates the identifier in AuthService before lookup.
       email: z
-        .email()
+        .string()
+        .trim()
+        .min(1)
         .max(254)
         .transform((value) => value.toLowerCase()),
       password: z.string().min(1).max(200),

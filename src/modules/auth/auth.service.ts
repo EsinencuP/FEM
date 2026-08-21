@@ -8,6 +8,7 @@ import {
 import type { Prisma } from '@prisma/client';
 import * as argon2 from 'argon2';
 import { authenticator } from 'otplib';
+import { z } from 'zod';
 
 import { withSerializableTransaction } from '../../common/database/serializable-transaction';
 import { RequestAuditContext } from '../../common/context/request-audit-context';
@@ -66,6 +67,10 @@ export class AuthService {
   async login(dto: LoginDto, metadata: RequestSecurityMetadata): Promise<LoginResult> {
     const now = new Date();
     const suppliedIdentifier = dto.email.trim().toLowerCase();
+    if (!this.config.portfolioReadonlyMode && !z.email().safeParse(suppliedIdentifier).success) {
+      await this.consumeInvalidPassword(dto.password);
+      throw this.invalidCredentials();
+    }
     const email =
       this.config.portfolioReadonlyMode &&
       suppliedIdentifier === this.config.portfolioDemoUsername.toLowerCase()
