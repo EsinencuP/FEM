@@ -191,7 +191,7 @@ export function LoginPage(): ReactNode {
               </div>
               <p className="fem-login__form-copy">
                 {portfolioReadonly
-                  ? 'Доступ открыт только для просмотра данных.'
+                  ? 'Введите логин и пароль для просмотра данных.'
                   : 'Введите email, пароль и актуальный код приложения 2FA.'}
               </p>
               {portfolioReadonly ? (
@@ -232,55 +232,55 @@ export function LoginPage(): ReactNode {
                     </span>
                   </div>
 
+                  <div className="fem-login__field">
+                    <label htmlFor="login-password">Пароль</label>
+                    <span className="fem-login__input">
+                      <i>
+                        <LockIcon />
+                      </i>
+                      <input
+                        id="login-password"
+                        name="password"
+                        type={showPassword ? 'text' : 'password'}
+                        autoComplete="current-password"
+                        placeholder="Введите пароль"
+                        required
+                      />
+                      <button
+                        className="fem-login__reveal"
+                        type="button"
+                        aria-label={showPassword ? 'Скрыть пароль' : 'Показать пароль'}
+                        aria-pressed={showPassword}
+                        onClick={() => setShowPassword((current) => !current)}
+                      >
+                        <EyeIcon hidden={showPassword} />
+                      </button>
+                    </span>
+                  </div>
+
                   {!portfolioReadonly ? (
                     <div className="fem-login__field">
-                      <label htmlFor="login-password">Пароль</label>
+                      <label className="fem-login__field-label" htmlFor="login-otp">
+                        Код 2FA
+                        <small>6 цифр</small>
+                      </label>
                       <span className="fem-login__input">
                         <i>
-                          <LockIcon />
+                          <KeyIcon />
                         </i>
                         <input
-                          id="login-password"
-                          name="password"
-                          type={showPassword ? 'text' : 'password'}
-                          autoComplete="current-password"
-                          placeholder="Введите пароль"
+                          id="login-otp"
+                          name="otp"
+                          inputMode="numeric"
+                          autoComplete="one-time-code"
+                          pattern="[0-9]{6}"
+                          maxLength={6}
+                          placeholder="000 000"
                           required
                         />
-                        <button
-                          className="fem-login__reveal"
-                          type="button"
-                          aria-label={showPassword ? 'Скрыть пароль' : 'Показать пароль'}
-                          aria-pressed={showPassword}
-                          onClick={() => setShowPassword((current) => !current)}
-                        >
-                          <EyeIcon hidden={showPassword} />
-                        </button>
                       </span>
                     </div>
                   ) : null}
-
-                  <div className="fem-login__field">
-                    <label className="fem-login__field-label" htmlFor="login-otp">
-                      Код 2FA
-                      <small>6 цифр</small>
-                    </label>
-                    <span className="fem-login__input">
-                      <i>
-                        <KeyIcon />
-                      </i>
-                      <input
-                        id="login-otp"
-                        name="otp"
-                        inputMode="numeric"
-                        autoComplete="one-time-code"
-                        pattern="[0-9]{6}"
-                        maxLength={6}
-                        placeholder="000 000"
-                        required
-                      />
-                    </span>
-                  </div>
 
                   <button className="fem-login__submit" type="submit">
                     <span>{busy ? 'Проверяем доступ…' : 'Продолжить'}</span>
@@ -294,7 +294,10 @@ export function LoginPage(): ReactNode {
               <div className="fem-login__security">
                 <span aria-hidden="true">✓</span>
                 <p>
-                  <strong>Защищённая сессия</strong>Пароль и код не сохраняются в браузере.
+                  <strong>Защищённая сессия</strong>
+                  {portfolioReadonly
+                    ? 'Пароль не сохраняется в браузере.'
+                    : 'Пароль и код не сохраняются в браузере.'}
                 </p>
               </div>
             </div>
