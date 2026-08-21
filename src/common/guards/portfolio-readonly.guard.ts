@@ -11,7 +11,12 @@ export class PortfolioReadonlyGuard implements CanActivate {
     const request = context.switchToHttp().getRequest<{ method?: string; originalUrl?: string }>();
     const path = request.originalUrl ?? '';
     const method = request.method ?? 'GET';
-    if (/\/v1\/admin(?:\/|$)/u.test(path) && !['GET', 'HEAD', 'OPTIONS'].includes(method)) {
+    const adminMutation =
+      /\/v1\/admin(?:\/|$)/u.test(path) && !['GET', 'HEAD', 'OPTIONS'].includes(method);
+    const authMutation =
+      /\/v1\/auth\/(?:password|recovery-codes|totp\/re-enrollment)(?:\/|$)/u.test(path) &&
+      !['GET', 'HEAD', 'OPTIONS'].includes(method);
+    if (adminMutation || authMutation) {
       throw new ForbiddenException({
         message: 'This portfolio is read-only.',
         code: 'PORTFOLIO_READ_ONLY',

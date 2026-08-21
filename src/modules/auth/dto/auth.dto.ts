@@ -21,7 +21,11 @@ export class LoginDto {
     })
     .strict();
 
-  @ApiProperty({ format: 'email', example: 'admin@example.invalid' })
+  @ApiProperty({
+    format: 'email',
+    example: 'admin@example.invalid',
+    description: 'Email, or the portfolio username when read-only mode is enabled',
+  })
   email!: string;
 
   @ApiProperty({ format: 'password', minLength: 1, maxLength: 200 })
