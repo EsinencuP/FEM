@@ -191,7 +191,7 @@ export function LoginPage(): ReactNode {
               </div>
               <p className="fem-login__form-copy">
                 {portfolioReadonly
-                  ? 'Демо-доступ открыт только для просмотра данных.'
+                  ? 'Доступ открыт только для просмотра данных.'
                   : 'Введите email, пароль и актуальный код приложения 2FA.'}
               </p>
               {portfolioReadonly ? (

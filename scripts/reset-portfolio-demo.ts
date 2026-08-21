@@ -76,7 +76,8 @@ async function main(): Promise<void> {
     const passwordHash = await argon2.hash(password);
     await prisma.$transaction(async (tx) => {
       const existing = await tx.user.findUnique({ where: { email } });
-      const current = await tx.user.findFirst({ where: { email: 'demo.admin@fem.local' } });
+      const legacy = await tx.user.findFirst({ where: { email: 'demo.admin@fem.local' } });
+      const current = legacy ?? (existing?.isDemo ? existing : null);
       if (existing && existing.id !== current?.id) {
         throw new Error(`Refusing reset: ${email} already belongs to another user.`);
       }
@@ -86,8 +87,9 @@ async function main(): Promise<void> {
       await tx.adminSession.updateMany({
         data: { revokedAt: new Date(), revokeReason: 'portfolio-reset' },
       });
-      if (!current)
-        throw new Error('Expected demo administrator demo.admin@fem.local was not found.');
+      if (!current) {
+        throw new Error('Expected portfolio administrator was not found.');
+      }
       await tx.user.update({
         where: { id: current.id },
         data: {
